@@ -1,26 +1,28 @@
 resource_registry:
   OS::TripleO::Controller::Net::SoftwareConfig: ../common/net-config-multinode.yaml
   OS::TripleO::Compute::Net::SoftwareConfig: ../common/net-config-multinode.yaml
-  OS::TripleO::Services::BarbicanApi: ../../deployment/barbican/barbican-api-container-puppet.yaml
-  OS::TripleO::Services::Zaqar: ../../deployment/zaqar/zaqar-container-puppet.yaml
-  OS::TripleO::Services::Ec2Api: ../../deployment/ec2/ec2-api-container-puppet.yaml
-  OS::TripleO::Services::PankoApi: ../../deployment/deprecated/panko/panko-api-container-puppet.yaml
-  OS::TripleO::Services::OsloMessagingRpc: ../../deployment/rabbitmq/rabbitmq-messaging-rpc-pacemaker-puppet.yaml
-  OS::TripleO::Services::OsloMessagingNotify: ../../deployment/rabbitmq/rabbitmq-messaging-notify-shared-puppet.yaml
-  OS::TripleO::Services::Redis: ../../deployment/database/redis-pacemaker-puppet.yaml
-  OS::TripleO::Services::HAproxy: ../../deployment/haproxy/haproxy-pacemaker-puppet.yaml
+  OS::TripleO::Services::BarbicanApi: ../../docker/services/barbican-api.yaml
+  OS::TripleO::Services::Zaqar: ../../docker/services/zaqar.yaml
+  OS::TripleO::Services::Ec2Api: ../../docker/services/ec2-api.yaml
+  OS::TripleO::Services::PankoApi: ../../docker/services/panko-api.yaml
+  OS::TripleO::Services::OsloMessagingRpc: ../../docker/services/pacemaker/rpc-rabbitmq.yaml
+  OS::TripleO::Services::OsloMessagingNotify: ../../docker/services/messaging/notify-rabbitmq-shared.yaml
+  OS::TripleO::Services::Redis: ../../docker/services/pacemaker/database/redis.yaml
+  OS::TripleO::Services::HAproxy: ../../docker/services/pacemaker/haproxy.yaml
   OS::TripleO::Services::Pacemaker: ../../puppet/services/pacemaker.yaml
   OS::TripleO::Services::PacemakerRemote: ../../puppet/services/pacemaker_remote.yaml
-  OS::TripleO::Services::Clustercheck: ../../deployment/pacemaker/clustercheck-container-puppet.yaml
-  OS::TripleO::Services::MySQL: ../../deployment/database/mysql-pacemaker-puppet.yaml
-  OS::TripleO::Services::CinderBackup: ../../deployment/cinder/cinder-backup-pacemaker-puppet.yaml
-  OS::TripleO::Services::CinderVolume: ../../deployment/cinder/cinder-volume-pacemaker-puppet.yaml
-  OS::TripleO::Services::BarbicanBackendSimpleCrypto: ../../deployment/barbican/barbican-backend-simple-crypto-puppet.yaml
+  OS::TripleO::Services::Clustercheck: ../../docker/services/pacemaker/clustercheck.yaml
+  OS::TripleO::Services::MySQL: ../../docker/services/pacemaker/database/mysql.yaml
+  OS::TripleO::Services::CinderBackup: ../../docker/services/pacemaker/cinder-backup.yaml
+  OS::TripleO::Services::CinderVolume: ../../docker/services/pacemaker/cinder-volume.yaml
+  OS::TripleO::Services::BarbicanBackendSimpleCrypto: ../../puppet/services/barbican-backend-simple-crypto.yaml
   OS::TripleO::Services::Keepalived: OS::Heat::None
+  OS::TripleO::Tasks::ControllerPreConfig: OS::Heat::None
+  OS::TripleO::Tasks::ControllerPostConfig: OS::Heat::None
+  OS::TripleO::Tasks::ControllerPostPuppetRestart: ../../extraconfig/tasks/post_puppet_pacemaker_restart.yaml
   # Some infra instances don't pass the ping test but are otherwise working.
   # Since the OVB jobs also test this functionality we can shut it off here.
   OS::TripleO::AllNodes::Validation: ../common/all-nodes-validation-disabled.yaml
-  OS::TripleO::Services::Fluentd: ../../deployment/deprecated/logging/fluentd-container-puppet.yaml
 
 parameter_defaults:
   ControllerServices:
@@ -36,11 +38,12 @@ parameter_defaults:
     - OS::TripleO::Services::HeatEngine
     - OS::TripleO::Services::MySQL
     - OS::TripleO::Services::MySQLClient
+    - OS::TripleO::Services::NeutronDhcpAgent
+    - OS::TripleO::Services::NeutronL3Agent
+    - OS::TripleO::Services::NeutronMetadataAgent
     - OS::TripleO::Services::NeutronServer
     - OS::TripleO::Services::NeutronCorePlugin
-    - OS::TripleO::Services::OVNDBs
-    - OS::TripleO::Services::OVNController
-    - OS::TripleO::Services::OVNMetadataAgent
+    - OS::TripleO::Services::NeutronOvsAgent
     - OS::TripleO::Services::OsloMessagingRpc
     - OS::TripleO::Services::OsloMessagingNotify
     - OS::TripleO::Services::HAproxy
@@ -52,8 +55,8 @@ parameter_defaults:
     - OS::TripleO::Services::NovaPlacement
     - OS::TripleO::Services::NovaMetadata
     - OS::TripleO::Services::NovaScheduler
+    - OS::TripleO::Services::Ntp
     - OS::TripleO::Services::Snmp
-    - OS::TripleO::Services::Timesync
     - OS::TripleO::Services::Timezone
     - OS::TripleO::Services::NovaCompute
     - OS::TripleO::Services::NovaLibvirt
@@ -86,30 +89,26 @@ parameter_defaults:
     - OS::TripleO::Services::GnocchiMetricd
     - OS::TripleO::Services::GnocchiStatsd
     - OS::TripleO::Services::PankoApi
-    - OS::TripleO::Services::Fluentd
   ControllerExtraConfig:
     nova::compute::libvirt::services::libvirt_virt_type: qemu
     nova::compute::libvirt::libvirt_virt_type: qemu
     # NOTE(sileht): To decrease the time test_telemetry_integration takes We
-    # configure Ceilometer to poll more, We configure the
-    # 'ceilometer-high-rate' Gnocchi archive policy to keep 1 point every 60s.
-    # The test will take 2 minutes instead of 10 minutes. Note that tempest
-    # telemetry.alarm_granularity must in sync with the archive policy, 60s
-    # too.
+    # configure Ceilometer to poll more, We configure the 'high' Gnocchi
+    # archive policy to keep 1 point every 60s. The test will take 2 minutes
+    # instead of 10 minutes. Note that tempest telemetry.alarm_granularity must
+    # in sync with the archive policy, 60s too.
     ceilometer::agent::polling::polling_interval: 15
   ManagePolling: true
   ManagePipeline: true
   PipelinePublishers:
-    - gnocchi://?archive_policy=ceilometer-high-rate
+    - gnocchi://?archive_policy=high
   EventPipelinePublishers:
-    - gnocchi://?archive_policy=ceilometer-high-rate
+    - gnocchi://?archive_policy=high
     - panko://
-  GnocchiArchivePolicy: 'ceilometer-high-rate'
+  GnocchiArchivePolicy: 'high'
   Debug: true
   DockerPuppetDebug: True
   ZaqarMessageStore: 'swift'
   ZaqarManagementStore: 'sqlalchemy'
   SwiftCeilometerPipelineEnabled: false
   BarbicanSimpleCryptoGlobalDefault: true
-  # Remove ContainerCli once this scenario is tested on CentOS8
-  ContainerCli: docker

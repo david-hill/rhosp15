@@ -10,19 +10,13 @@
     - primary
     - controller
   networks:
-    External:
-      subnet: external_subnet
-    InternalApi:
-      subnet: internal_api_subnet
-    Storage:
-      subnet: storage_subnet
-    StorageMgmt:
-      subnet: storage_mgmt_subnet
-    Tenant:
-      subnet: tenant_subnet
+    - External
+    - InternalApi
+    - Storage
+    - StorageMgmt
+    - Tenant
   default_route_networks: ['External']
   HostnameFormatDefault: '%stackname%-controller-%index%'
-  update_serial: 1
   ServicesDefault:
     - OS::TripleO::Services::AodhApi
     - OS::TripleO::Services::AodhEvaluator
@@ -31,7 +25,6 @@
     - OS::TripleO::Services::AuditD
     - OS::TripleO::Services::BarbicanApi
     - OS::TripleO::Services::BarbicanBackendSimpleCrypto
-    - OS::TripleO::Services::BootParams
     - OS::TripleO::Services::CACerts
     - OS::TripleO::Services::CeilometerAgentCentral
     - OS::TripleO::Services::CeilometerAgentNotification
@@ -49,6 +42,7 @@
     - OS::TripleO::Services::CinderVolume
     - OS::TripleO::Services::Collectd
     - OS::TripleO::Services::MetricsQdr
+    - OS::TripleO::Services::Congress
     - OS::TripleO::Services::DesignateApi
     - OS::TripleO::Services::DesignateCentral
     - OS::TripleO::Services::DesignateProducer
@@ -58,9 +52,9 @@
     - OS::TripleO::Services::Docker
     - OS::TripleO::Services::Etcd
     - OS::TripleO::Services::Fluentd
-    - OS::TripleO::Services::IpaClient
     - OS::TripleO::Services::Ipsec
     - OS::TripleO::Services::GlanceApi
+    - OS::TripleO::Services::GlanceRegistry
     - OS::TripleO::Services::GnocchiApi
     - OS::TripleO::Services::GnocchiMetricd
     - OS::TripleO::Services::GnocchiStatsd
@@ -93,6 +87,7 @@
     - OS::TripleO::Services::MistralEngine
     - OS::TripleO::Services::MistralExecutor
     - OS::TripleO::Services::MistralEventEngine
+    - OS::TripleO::Services::MongoDb
     - OS::TripleO::Services::MySQLClient
     - OS::TripleO::Services::NeutronApi
     - OS::TripleO::Services::NeutronBgpVpnApi
@@ -101,6 +96,7 @@
     - OS::TripleO::Services::NeutronL2gwApi
     - OS::TripleO::Services::NeutronLbaasv2Api
     - OS::TripleO::Services::NovaIronic
+    - OS::TripleO::Services::Ntp
     - OS::TripleO::Services::ContainersLogrotateCrond
     - OS::TripleO::Services::OctaviaApi
     - OS::TripleO::Services::OctaviaHealthManager
@@ -108,18 +104,18 @@
     - OS::TripleO::Services::OctaviaWorker
     - OS::TripleO::Services::OpenDaylightApi
     - OS::TripleO::Services::OpenDaylightOvs
-    - OS::TripleO::Services::OpenStackClients
     - OS::TripleO::Services::OVNDBs
     - OS::TripleO::Services::OVNController
     - OS::TripleO::Services::Pacemaker
     - OS::TripleO::Services::PankoApi
-    - OS::TripleO::Services::Podman
     - OS::TripleO::Services::Redis
     - OS::TripleO::Services::Rhsm
     - OS::TripleO::Services::RsyslogSidecar
     - OS::TripleO::Services::SaharaApi
     - OS::TripleO::Services::SaharaEngine
     - OS::TripleO::Services::SensuClient
+    - OS::TripleO::Services::SkydiveAgent
+    - OS::TripleO::Services::SkydiveAnalyzer
     - OS::TripleO::Services::Snmp
     - OS::TripleO::Services::Sshd
     - OS::TripleO::Services::SwiftProxy
@@ -127,7 +123,6 @@
     - OS::TripleO::Services::SwiftRingBuilder
     - OS::TripleO::Services::SwiftStorage
     - OS::TripleO::Services::Tacker
-    - OS::TripleO::Services::Timesync
     - OS::TripleO::Services::Timezone
     - OS::TripleO::Services::TripleoFirewall
     - OS::TripleO::Services::TripleoPackages

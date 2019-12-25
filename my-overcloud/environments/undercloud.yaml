@@ -1,29 +1,17 @@
-parameter_merge_strategies:
-  default: overwrite
-  UndercloudExtraConfig: deep_merge
-
 resource_registry:
-  OS::TripleO::Services::Tmpwatch: ../deployment/logrotate/tmpwatch-install.yaml
   OS::TripleO::Network::Ports::RedisVipPort: ../network/ports/noop.yaml
   OS::TripleO::Network::Ports::ControlPlaneVipPort: ../deployed-server/deployed-neutron-port.yaml
   OS::TripleO::Undercloud::Net::SoftwareConfig: ../net-config-undercloud.yaml
+  OS::TripleO::NodeExtraConfig: ../extraconfig/pre_deploy/undercloud_pre.yaml
   OS::TripleO::NodeExtraConfigPost: ../extraconfig/post_deploy/undercloud_post.yaml
-  OS::TripleO::Services::DockerRegistry: ../deployment/image-serve/image-serve-baremetal-ansible.yaml
-  OS::TripleO::Services::ContainerImagePrepare: ../deployment/container-image-prepare/container-image-prepare-baremetal-ansible.yaml
+  OS::TripleO::Services::DockerRegistry: ../puppet/services/docker-registry.yaml
+  OS::TripleO::Services::ContainerImagePrepare: ../puppet/services/container-image-prepare.yaml
   # Allows us to control the external VIP for Undercloud SSL
   OS::TripleO::Network::Ports::ExternalVipPort: ../network/ports/external_from_pool.yaml
 
-  OS::TripleO::Services::ComputeNeutronOvsAgent: ../deployment/neutron/neutron-ovs-agent-container-puppet.yaml
-  OS::TripleO::Services::NeutronMetadataAgent: ../deployment/neutron/neutron-metadata-container-puppet.yaml
-  OS::TripleO::Services::NeutronOvsAgent: ../deployment/neutron/neutron-ovs-agent-container-puppet.yaml
-  OS::TripleO::Services::NeutronDhcpAgent: ../deployment/neutron/neutron-dhcp-container-puppet.yaml
-  OS::TripleO::Services::NeutronL3Agent: ../deployment/neutron/neutron-l3-container-puppet.yaml
-  OS::TripleO::Services::NeutronCorePlugin: ../deployment/neutron/neutron-plugin-ml2-container-puppet.yaml
-  OS::TripleO::Docker::NeutronMl2PluginBase: ../puppet/services/neutron-plugin-ml2.yaml
-
   # We managed this in instack-undercloud, so we need to manage it here.
-  OS::TripleO::Services::SELinux: ../deployment/selinux/selinux-baremetal-puppet.yaml
-  OS::TripleO::Services::OpenStackClients: ../deployment/clients/openstack-clients-baremetal-puppet.yaml
+  OS::TripleO::Services::SELinux: ../puppet/services/selinux.yaml
+  OS::TripleO::Services::OpenStackClients: ../puppet/services/openstack-clients.yaml
 
   # services we disable by default on the undercloud
   OS::TripleO::Services::AodhApi: OS::Heat::None
@@ -41,22 +29,6 @@ resource_registry:
   OS::TripleO::Services::CinderApi: OS::Heat::None
   OS::TripleO::Services::CinderScheduler: OS::Heat::None
   OS::TripleO::Services::CinderVolume: OS::Heat::None
-
-  # Services we don't ever want configured. See LP#1824030
-  OS::TripleO::Services::Pacemaker: OS::Heat::None
-  OS::TripleO::Services::PacemakerRemote: OS::Heat::None
-  OS::TripleO::Services::Clustercheck: OS::Heat::None
-
-  # Ensure non-pacemaker versions. See LP#1824030
-  # CinderVolume is set to None above and OVNdbs is currently not in the list in role_data_undercloud.yaml so
-  # avoiding that as well until the UC switches to OVN
-  OS::TripleO::Services::MySQL: ../deployment/database/mysql-container-puppet.yaml
-  OS::TripleO::Services::OsloMessagingRpc: ../deployment/rabbitmq/rabbitmq-messaging-rpc-container-puppet.yaml
-  OS::TripleO::Services::OsloMessagingNotify: ../deployment/rabbitmq/rabbitmq-messaging-notify-shared-puppet.yaml
-
-  # Enable Podman on the Undercloud.
-  # This line will drop in Stein when it becomes the default.
-  OS::TripleO::Services::Podman: ../deployment/podman/podman-baremetal-ansible.yaml
 
   # Undercloud HA services
   OS::TripleO::Services::HAproxy: OS::Heat::None
@@ -99,13 +71,6 @@ parameter_defaults:
   HeatMaxResourcesPerStack: -1
   HeatMaxJsonBodySize: 4194304
   HeatReauthenticationAuthMethod: 'trusts'
-  HeatYaqlLimitIterators: 10000
-  # Disable non-lifecycle stack actions like
-  # snapshot, resume, cancel update and stack check.
-  HeatApiPolicies:
-    heat-deny-action:
-      key: 'actions:action'
-      value: 'rule:deny_everybody'
   IronicCleaningDiskErase: 'metadata'
   IronicCorsAllowedOrigin: '*'
   IronicDefaultInspectInterface: 'inspector'
@@ -131,8 +96,8 @@ parameter_defaults:
   IronicForcePowerStateDuringSync: false
   IronicInspectorCollectors: default,extra-hardware,numa-topology,logs
   IronicInspectorInterface: br-ctlplane
-  # IronicInspectorSubnets:
-  #   - ip_range: '192.168.24.100,192.168.24.200'
+  IronicInspectorSubnets:
+    - ip_range: '192.168.24.100,192.168.24.200'
   IronicProvisioningNetwork: 'ctlplane'
   IronicRescuingNetwork: 'ctlplane'
   ZaqarMessageStore: 'swift'
@@ -150,17 +115,8 @@ parameter_defaults:
   NeutronTunnelIdRanges: '20:100'
   NeutronTypeDrivers: ['local','flat','vlan','gre','vxlan']
   NeutronVniRanges: '10:100'
-  NeutronEnableDVR: false
   NeutronPortQuota: '-1'
-  # This allows MTU > 1500 for the overcloud if local_mtu is set to 1500
-  # See LP#1826729
-  TenantNetPhysnetMtu: 0
   SwiftCorsAllowedOrigin: '*'
-  SwiftReplicas: 1
-  SwiftWorkers: 2
-  SwiftAccountWorkers: 2
-  SwiftContainerWorkers: 2
-  SwiftObjectWorkers: 2
   # A list of static routes for the control plane network. Ensure traffic to
   # nodes on remote control plane networks use the correct network path.
   # Example:
@@ -170,61 +126,23 @@ parameter_defaults:
   #     - ip_netmask: 192.168.26.0/24
   #       next_hop: 192.168.24.1
   ControlPlaneStaticRoutes: []
-  # A dictionary of Undercloud ctlplane subnets.
-  # NOTE(hjensas): This should be {} in this environment file, otherwise it may
-  # results in values set here being merged with the values set in
-  # undercloud.conf. See Bug: https://bugs.launchpad.net/tripleo/+bug/1820330
-  # Example:
-  #   UndercloudCtlplaneSubnets:
-  #     ctlplane-subnet:
-  #       NetworkCidr: '192.168.24.0/24'
-  #       NetworkGateway: '192.168.24.1'
-  #       DhcpRangeStart: '192.168.24.5'
-  #       DhcpRangeEnd: '192.168.24.24'
-  #       HostRoutes:
-  #         - {'destination': '10.10.10.0/24', 'nexthop': '192.168.24.254'}
-  UndercloudCtlplaneSubnets: {}
+  UndercloudCtlplaneSubnets:
+    ctlplane-subnet:
+      NetworkCidr: '192.168.24.0/24'
+      NetworkGateway: '192.168.24.1'
+      DhcpRangeStart: '192.168.24.5'
+      DhcpRangeEnd: '192.168.24.24'
   UndercloudCtlplaneLocalSubnet: 'ctlplane-subnet'
   MistralDockerGroup: true
   PasswordAuthentication: 'yes'
+  ContainerImagePrepareLogFile: ../install-undercloud.log
   HeatEngineOptVolumes:
     - /usr/lib/heat:/usr/lib/heat:ro
   MySQLServerOptions:
     mysqld:
       connect_timeout: 60
+  MistralExecutorExtraVolumes:
+    - /usr/share/ceph-ansible:/usr/share/ceph-ansible:ro
+    - /usr/share/openstack-octavia-amphora-images:/usr/share/openstack-octavia-amphora-images:ro
   NeutronMetadataProxySharedSecret: ''
   MetadataNATRule: true
-  # TODO(emilien) Remove when Keepalived 2.0.6 is out
-  # https://bugs.launchpad.net/tripleo/+bug/1791238
-  KeepalivedRestart: true
-  SshFirewallAllowAll: true
-  UndercloudExtraConfig:
-    aodh::keystone::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
-    barbican::keystone::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
-    ceilometer::keystone::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
-    cinder::keystone::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
-    congress::keystone::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
-    ec2api::keystone::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
-    glance::api::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
-    gnocchi::keystone::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
-    heat::keystone::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
-    heat::cache::memcache_servers: "%{hiera('memcached::listen_ip')}:11211"
-    horizon::cache_server_ip: "%{hiera('memcached::listen_ip')}:11211"
-    ironic::api::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
-    ironic::inspector::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
-    keystone::cache_memcache_servers: "%{hiera('memcached::listen_ip')}:11211"
-    keystone::cache_backend: "dogpile.cache.memcached"
-    manila::keystone::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
-    manila::keystone::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
-    mistral::keystone::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
-    neutron::keystone::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
-    nova::keystone::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
-    nova::cache::memcache_servers: "%{hiera('memcached::listen_ip')}:11211"
-    nova::keystone::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
-    panko::keystone::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
-    sahara::keystone::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
-    swift::proxy::authtoken::memcache_servers: "%{hiera('memcached::listen_ip')}:11211"
-    swift::proxy::cache::memcache_servers: "%{hiera('memcached::listen_ip')}:11211"
-    tacker::keystone::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
-    zaqar::keystone::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
-    swift::objectexpirer::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"

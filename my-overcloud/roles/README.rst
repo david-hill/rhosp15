@@ -58,11 +58,8 @@ Role Options
 * tags: (list) list of tags used by other parts of the deployment process to
   find the role for a specific type of functionality. Currently a role
   with both 'primary' and 'controller' is used as the primary role for the
-  deployment process. If no roles have 'primary' and 'controller', the
+  deployment process. If no roles have have 'primary' and 'controller', the
   first role in this file is used as the primary role.
-  The third tag that can be defined here is external_bridge, which is used
-  to define which node must have a bridge created in a multiple-nic network
-  config.
 
 * description: (string) as few sentences describing the role and information
   pertaining to the usage of the role.
@@ -174,13 +171,12 @@ Example
    * OS::TripleO::Services::NovaCompute
    * OS::TripleO::Services::NovaLibvirt
    * OS::TripleO::Services::NovaMigrationTarget
+   * OS::TripleO::Services::Ntp
    * OS::TripleO::Services::OpenDaylightOvs
-   * OS::TripleO::Services::Podman
    * OS::TripleO::Services::Securetty
    * OS::TripleO::Services::SensuClient
    * OS::TripleO::Services::Snmp
    * OS::TripleO::Services::Sshd
-   * OS::TripleO::Services::Timesync
    * OS::TripleO::Services::Timezone
    * OS::TripleO::Services::TripleoFirewall
    * OS::TripleO::Services::TripleoPackages

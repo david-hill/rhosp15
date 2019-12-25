@@ -1,16 +1,10 @@
 resource_registry:
   OS::TripleO::Controller::Net::SoftwareConfig: ../common/net-config-multinode-os-net-config.yaml
   OS::TripleO::Compute::Net::SoftwareConfig: ../common/net-config-multinode-os-net-config.yaml
-  OS::TripleO::Docker::NeutronMl2PluginBase: ../../puppet/services/neutron-plugin-ml2.yaml
-  OS::TripleO::Services::NeutronServer: ../../deployment/neutron/neutron-api-container-puppet.yaml
-  OS::TripleO::Services::NeutronApi: ../../deployment/neutron/neutron-api-container-puppet.yaml
-  OS::TripleO::Services::NeutronCorePlugin: ../../deployment/neutron/neutron-plugin-ml2-container-puppet.yaml
-  OS::TripleO::Services::NeutronMetadataAgent: ../../deployment/neutron/neutron-metadata-container-puppet.yaml
-  OS::TripleO::Services::NeutronOvsAgent: ../../deployment/neutron/neutron-ovs-agent-container-puppet.yaml
-  OS::TripleO::Services::NeutronDhcpAgent: ../../deployment/neutron/neutron-dhcp-container-puppet.yaml
-  OS::TripleO::Services::NeutronL3Agent: ../../deployment/neutron/neutron-l3-container-puppet.yaml
-  OS::TripleO::Services::ComputeNeutronOvsAgent: ../../deployment/neutron/neutron-ovs-agent-container-puppet.yaml
-
+  OS::TripleO::Docker::NeutronMl2PluginBase: ../../puppet/services/neutron-plugin-ml2-ovn.yaml
+  OS::TripleO::Services::OVNController: ../../docker/services/ovn-controller.yaml
+  OS::TripleO::Services::OVNDBs: ../../docker/services/ovn-dbs.yaml
+  OS::TripleO::Services::OVNMetadataAgent: ../../docker/services/ovn-metadata.yaml
   # Some infra instances don't pass the ping test but are otherwise working.
   # Since the OVB jobs also test this functionality we can shut it off here.
   OS::TripleO::AllNodes::Validation: ../common/all-nodes-validation-disabled.yaml
@@ -18,22 +12,10 @@ resource_registry:
   OS::TripleO::Services::SwiftProxy: OS::Heat::None
   OS::TripleO::Services::SwiftStorage: OS::Heat::None
   OS::TripleO::Services::SwiftRingBuilder: OS::Heat::None
-  # Disable OVN services
-  OS::TripleO::Services::OVNController: OS::Heat::None
-  OS::TripleO::Services::OVNDBs: OS::Heat::None
-  OS::TripleO::Services::OVNMetadataAgent: OS::Heat::None
   # TODO(mandre) fix the tacker service - https://bugs.launchpad.net/tripleo/+bug/1714270
   # OS::TripleO::Services::Tacker: ../../docker/services/tacker.yaml
-  # TODO tacker still wip https://bugs.launchpad.net/tripleo/+bug/1714270
-  # OS::TripleO::Services::Tacker: ../../deployment/tacker/tacker-container-puppet.yaml
-  OS::TripleO::Services::Tacker: OS::Heat::None
-  # environments/docker-ha.yaml enables the cinder service. So disable cinder services
-  OS::TripleO::Services::CinderVolume: OS::Heat::None
-  OS::TripleO::Services::CinderApi: OS::Heat::None
-  OS::TripleO::Services::CinderScheduler: OS::Heat::None
-  OS::TripleO::Services::CinderBackup: OS::Heat::None
-  OS::TripleO::Services::CinderBackendVRTSHyperScale: OS::Heat::None
-  OS::TripleO::Services::BlockStorageCinderVolume: OS::Heat::None
+  OS::TripleO::Services::Tacker: ../../puppet/services/tacker.yaml
+  OS::TripleO::Services::Congress: ../../docker/services/congress.yaml
 parameter_defaults:
   ControllerServices:
     - OS::TripleO::Services::CACerts
@@ -50,10 +32,9 @@ parameter_defaults:
     - OS::TripleO::Services::MySQLClient
     - OS::TripleO::Services::NeutronServer
     - OS::TripleO::Services::NeutronCorePlugin
-    - OS::TripleO::Services::NeutronDhcpAgent
-    - OS::TripleO::Services::NeutronL3Agent
-    - OS::TripleO::Services::NeutronMetadataAgent
-    - OS::TripleO::Services::NeutronOvsAgent
+    - OS::TripleO::Services::OVNDBs
+    - OS::TripleO::Services::OVNController
+    - OS::TripleO::Services::OVNMetadataAgent
     - OS::TripleO::Services::OsloMessagingRpc
     - OS::TripleO::Services::OsloMessagingNotify
     - OS::TripleO::Services::HAproxy
@@ -65,8 +46,8 @@ parameter_defaults:
     - OS::TripleO::Services::NovaPlacement
     - OS::TripleO::Services::NovaMetadata
     - OS::TripleO::Services::NovaScheduler
+    - OS::TripleO::Services::Ntp
     - OS::TripleO::Services::Snmp
-    - OS::TripleO::Services::Timesync
     - OS::TripleO::Services::Timezone
     - OS::TripleO::Services::NovaCompute
     - OS::TripleO::Services::NovaLibvirt
@@ -76,19 +57,24 @@ parameter_defaults:
     - OS::TripleO::Services::Sshd
     - OS::TripleO::Services::Iscsid
     - OS::TripleO::Services::Tacker
+    - OS::TripleO::Services::Congress
   ControllerExtraConfig:
     nova::compute::libvirt::services::libvirt_virt_type: qemu
     nova::compute::libvirt::libvirt_virt_type: qemu
     # Required for Centos 7.3 and Qemu 2.6.0
     nova::compute::libvirt::libvirt_cpu_mode: 'none'
-  # For ML2/OVS
-  NeutronMechanismDrivers: 'openvswitch'
-  NeutronTypeDrivers: 'vxlan,vlan,flat,gre'
-  NeutronNetworkType: 'vxlan'
-  NeutronServicePlugins: 'router,qos,segments,trunk'
-  NeutronVniRanges: ['1:4094', ]
-  NeutronEnableDVR: false
-  KernelIpNonLocalBind: 0
+  # For OVN.
+  NeutronMechanismDrivers: ovn
+  OVNVifType: ovs
+  OVNNeutronSyncMode: log
+  OVNQosDriver: ovn-qos
+  OVNTunnelEncapType: geneve
+  NeutronEnableDHCPAgent: false
+  NeutronTypeDrivers: 'geneve,vlan,flat,vxlan'
+  NeutronNetworkType: 'geneve'
+  NeutronServicePlugins: 'qos,networking_ovn.l3.l3_ovn.OVNL3RouterPlugin'
+  NeutronVniRanges: ['1:65536', ]
+  OVNBridgeMappings: 'datacentre:br-ex'
   Debug: true
   DockerPuppetDebug: True
   BannerText: |
@@ -104,5 +90,3 @@ parameter_defaults:
   GlanceBackend: 'file'
   IronicCleaningDiskErase: 'metadata'
   NotificationDriver: 'noop'
-  # Remove ContainerCli once this scenario is tested on CentOS8
-  ContainerCli: docker

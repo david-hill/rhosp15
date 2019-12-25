@@ -12,10 +12,7 @@ description: "
           fixed_ips:
             - ip_address: 127.0.0.1
           subnets:
-            - cidr: 127.0.0.0/24
-          network:
-            tags:
-              - 127.0.0.0/24"
+            - cidr: 127.0.0.0/24"
 
 parameters:
   name:
@@ -42,9 +39,6 @@ outputs:
   subnets:
     value:
       {get_param: [DeployedServerPortMap, {get_param: name}, subnets]}
-  network:
-    value:
-      {get_param: [DeployedServerPortMap, {get_param: name}, network]}
   name:
     value: {get_param: name}
   status:

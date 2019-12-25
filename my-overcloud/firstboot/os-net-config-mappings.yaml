@@ -61,15 +61,10 @@ resources:
             eth_addr=$(cat /sys/class/net/*/address | tr '\n' ',')
             mkdir -p /etc/os-net-config
 
-            # needed to handle where python lives
-            function get_python() {
-              command -v python3 || command -v python2 || command -v python || exit 1
-            }
-
             # Create an os-net-config mapping file, note this defaults to
             # /etc/os-net-config/mapping.yaml, so we use that name despite
             # rendering the result as json
-            echo '$node_lookup' | $(get_python) -c "
+            echo '$node_lookup' | python -c "
             import json
             import sys
             import copy
@@ -105,10 +100,9 @@ resources:
               if 'dmiString' in data[node] and 'id' in data[node]:
                 ps = Popen([ 'dmidecode',
                              '--string', data[node].get('dmiString') ],
-                             stdout=PIPE, universal_newlines=True)
+                             stdout=PIPE)
                 out, err = ps.communicate()
-                # See LP#1816652
-                if data[node].get('id').lower() == out.rstrip().lower():
+                if data[node].get('id') == out.rstrip():
                   write_mapping_file(lc_interface_mapping)
                   break
             "

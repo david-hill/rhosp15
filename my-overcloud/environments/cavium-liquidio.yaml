@@ -1,5 +1,7 @@
 resource_registry:
-   OS::TripleO::Services::LiquidioCompute:  ../deployment/cavium/liquidio-compute-config-container-puppet.yaml
+   # FIXME(bogdando): switch it, once it is containerized
+   OS::TripleO::Services::LiquidioCompute:  ../puppet/services/liquidio-compute-config.yaml
+   OS::TripleO::Services::NeutronMetadataAgent: ../docker/services/neutron-metadata.yaml
 
 parameter_defaults:
    LiquidioSriovVfNum: 4
@@ -9,8 +11,7 @@ parameter_defaults:
    LiquidioProviderMappings: 'datacentre:eth1'
    ComputeLiquidioParameters:
      KernelArgs: "intel_iommu=on iommu=pt"
-     NovaOVSDBConnection: "tcp:127.0.0.1:6640"
-   #NovaSchedulerDefaultFilters: ['RetryFilter', 'AvailabilityZoneFilter', 'ComputeFilter', 'ComputeCapabilitiesFilter', 'ImagePropertiesFilter', 'ServerGroupAntiAffinityFilter', 'ServerGroupAffinityFilter', 'PciPassthroughFilter']
+   #NovaSchedulerDefaultFilters: ['RetryFilter', 'AvailabilityZoneFilter', 'RamFilter', 'ComputeFilter', 'ComputeCapabilitiesFilter', 'ImagePropertiesFilter', 'ServerGroupAntiAffinityFilter', 'ServerGroupAffinityFilter', 'PciPassthroughFilter']
    #NovaPCIPassthrough:
    #  - address: "*:02:00.*"
 

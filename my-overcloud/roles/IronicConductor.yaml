@@ -5,22 +5,16 @@
   description: |
     Ironic Conductor node role
   networks:
-    InternalApi:
-      subnet: internal_api_subnet
-    Storage:
-      subnet: storage_subnet
+    - InternalApi
   HostnameFormatDefault: '%stackname%-ironic-%index%'
-  update_serial: 25
   ServicesDefault:
     - OS::TripleO::Services::Aide
     - OS::TripleO::Services::AuditD
-    - OS::TripleO::Services::BootParams
     - OS::TripleO::Services::CACerts
     - OS::TripleO::Services::CertmongerUser
     - OS::TripleO::Services::Collectd
     - OS::TripleO::Services::Docker
     - OS::TripleO::Services::Fluentd
-    - OS::TripleO::Services::IpaClient
     - OS::TripleO::Services::Ipsec
     - OS::TripleO::Services::IronicConductor
     - OS::TripleO::Services::IronicPxe
@@ -28,12 +22,11 @@
     - OS::TripleO::Services::LoginDefs
     - OS::TripleO::Services::MetricsQdr
     - OS::TripleO::Services::MySQLClient
+    - OS::TripleO::Services::Ntp
     - OS::TripleO::Services::ContainersLogrotateCrond
-    - OS::TripleO::Services::Podman
     - OS::TripleO::Services::Rhsm
     - OS::TripleO::Services::SensuClient
     - OS::TripleO::Services::Snmp
-    - OS::TripleO::Services::Timesync
     - OS::TripleO::Services::Timezone
     - OS::TripleO::Services::TripleoFirewall
     - OS::TripleO::Services::TripleoPackages

@@ -18,35 +18,26 @@ parameters:
     description: The default route of the control plane network. (The parameter
       is automatically resolved from the ctlplane subnet's gateway_ip attribute.)
     type: string
-  ControlPlaneStaticRoutes:
-    default: []
-    description: >
-      Routes for the ctlplane network traffic.
-      JSON route e.g. [{'destination':'10.0.0.0/16', 'nexthop':'10.0.0.1'}]
-      Unless the default is changed, the parameter is automatically resolved
-      from the subnet host_routes attribute.
-    type: json
-  ControlPlaneMtu:
-    default: 1500
-    description: The maximum transmission unit (MTU) size(in bytes) that is
-      guaranteed to pass through the data path of the segments in the network.
-      (The parameter is automatically resolved from the ctlplane network's mtu attribute.)
-    type: number
 {% for network in networks %}
   {{network.name}}IpSubnet:
     default: ''
     description: IP address/subnet on the {{network.name_lower}} network
     type: string
   {{network.name}}NetworkVlanID:
-    default: {{network.vlan|default(1)}}
+    default: {{network.vlan}}
     description: Vlan ID for the {{network.name_lower}} network traffic.
     type: number
-  {{network.name}}Mtu:
-    default: {{network.mtu|default('1500')}}
-    description: The maximum transmission unit (MTU) size(in bytes) that is
-      guaranteed to pass through the data path of the segments in the
-      {{network.name}} network.
-    type: number
+{%- if network.ipv6|default(false) and network.gateway_ipv6|default(false) %}
+  {{network.name}}InterfaceDefaultRoute:
+    default: '{{network.gateway_ipv6}}'
+    description: default route for the {{network.name_lower}} network
+    type: string
+{%- elif network.gateway_ip|default(false) %}
+  {{network.name}}InterfaceDefaultRoute:
+    default: '{{network.gateway_ip}}'
+    description: default route for the {{network.name_lower}} network
+    type: string
+{%- endif %}
   {{network.name}}InterfaceRoutes:
     default: []
     description: >
@@ -56,10 +47,6 @@ parameters:
       from the subnet host_routes attribute.
     type: json
 {%- endfor %}
-  ExternalInterfaceDefaultRoute:
-    default: ''
-    description: default route for the external network
-    type: string
   DnsServers: # Override this via parameter_defaults
     default: []
     description: >
@@ -73,24 +60,6 @@ parameters:
       is automatically resolved from the ctlplane subnet's host_routes attribute.)
     type: string
 resources:
-
-  MinViableMtu:
-    # This resource resolves the minimum viable MTU for interfaces, bonds and
-    # bridges that carry multiple VLANs. Each VLAN may have different MTU. The
-    # bridge, bond or interface must have an MTU to allow the VLAN with the
-    # largest MTU.
-    type: OS::Heat::Value
-    properties:
-      type: number
-      value:
-        yaql:
-          expression: $.data.max()
-          data:
-            - {get_param: ControlPlaneMtu}
-{%- for network in networks if network.enabled|default(true) %}
-            - {get_param: {{network.name}}Mtu}
-{%- endfor %}
-
   OsNetConfigImpl:
     type: OS::Heat::SoftwareConfig
     properties:
@@ -104,8 +73,6 @@ resources:
               network_config:
               - type: ovs_bridge
                 name: bridge_name
-                mtu:
-                  get_attr: [MinViableMtu, value]
                 use_dhcp: false
                 dns_servers:
                   get_param: DnsServers
@@ -116,23 +83,17 @@ resources:
                     - - get_param: ControlPlaneIp
                       - get_param: ControlPlaneSubnetCidr
                 routes:
-                  list_concat_unique:
-                    - get_param: ControlPlaneStaticRoutes
-                    - - ip_netmask: 169.254.169.254/32
-                        next_hop:
-                          get_param: EC2MetadataIp
-                      - default: true  # NOTE(hjensas): This is the IPv4 default route
-                        next_hop:
-                          get_param: ControlPlaneDefaultRoute
+                - ip_netmask: 169.254.169.254/32
+                  next_hop:
+                    get_param: EC2MetadataIp
+                - default: true  # NOTE(hjensas): This is the IPv4 default route
+                  next_hop:
+                    get_param: ControlPlaneDefaultRoute
                 members:
                 - type: interface
                   name: nic1
-                  mtu:
-                    get_attr: [MinViableMtu, value]
                   primary: true
                 - type: vlan
-                  mtu:
-                    get_attr: [MinViableMtu, value]
                   vlan_id:
                     get_param: ExternalNetworkVlanID
                   addresses:
@@ -145,8 +106,6 @@ resources:
                           next_hop:
                             get_param: ExternalInterfaceDefaultRoute
                 - type: vlan
-                  mtu:
-                    get_attr: [MinViableMtu, value]
                   vlan_id:
                     get_param: InternalApiNetworkVlanID
                   addresses:
@@ -155,8 +114,6 @@ resources:
                   routes:
                     get_param: InternalApiInterfaceRoutes
                 - type: vlan
-                  mtu:
-                    get_attr: [MinViableMtu, value]
                   vlan_id:
                     get_param: StorageNetworkVlanID
                   addresses:
@@ -165,8 +122,6 @@ resources:
                   routes:
                     get_param: StorageInterfaceRoutes
                 - type: vlan
-                  mtu:
-                    get_attr: [MinViableMtu, value]
                   vlan_id:
                     get_param: StorageMgmtNetworkVlanID
                   addresses:
@@ -175,8 +130,6 @@ resources:
                   routes:
                     get_param: StorageMgmtInterfaceRoutes
                 - type: vlan
-                  mtu:
-                    get_attr: [MinViableMtu, value]
                   vlan_id:
                     get_param: TenantNetworkVlanID
                   addresses:
@@ -189,8 +142,6 @@ resources:
                 # out the default route on the External interface. This will
                 # make the External API unreachable from remote subnets.
                 #- type: vlan
-                #  mtu:
-                #    get_attr: [MinViableMtu, value]
                 #  vlan_id:
                 #    get_param: ManagementNetworkVlanID
                 #  addresses:

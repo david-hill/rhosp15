@@ -1,13 +1,12 @@
 resource_registry:
   OS::TripleO::Controller::Net::SoftwareConfig: ../common/net-config-multinode.yaml
   OS::TripleO::Compute::Net::SoftwareConfig: ../common/net-config-multinode.yaml
-  OS::TripleO::Services::OpenDaylightApi: ../../deployment/deprecated/opendaylight/opendaylight-api-container-puppet.yaml
+  OS::TripleO::Tasks::ControllerPreConfig: OS::Heat::None
+  OS::TripleO::Tasks::ControllerPostConfig: OS::Heat::None
+  OS::TripleO::Tasks::ControllerPostPuppetRestart: .OS::Heat::None
+  OS::TripleO::Services::OpenDaylightApi: ../../docker/services/opendaylight-api.yaml
   OS::TripleO::Services::OpenDaylightOvs: ../../puppet/services/opendaylight-ovs.yaml
   OS::TripleO::Docker::NeutronMl2PluginBase: ../../puppet/services/neutron-plugin-ml2-odl.yaml
-  # Disable OVN services
-  OS::TripleO::Services::OVNController: OS::Heat::None
-  OS::TripleO::Services::OVNDBs: OS::Heat::None
-  OS::TripleO::Services::OVNMetadataAgent: OS::Heat::None
 
 parameter_defaults:
   ControllerServices:
@@ -36,13 +35,13 @@ parameter_defaults:
     - OS::TripleO::Services::NovaMetadata
     - OS::TripleO::Services::NovaPlacement
     - OS::TripleO::Services::NovaScheduler
+    - OS::TripleO::Services::Ntp
     - OS::TripleO::Services::OpenDaylightApi
     - OS::TripleO::Services::OpenDaylightOvs
     - OS::TripleO::Services::OsloMessagingNotify
     - OS::TripleO::Services::OsloMessagingRpc
     - OS::TripleO::Services::Snmp
     - OS::TripleO::Services::Sshd
-    - OS::TripleO::Services::Timesync
     - OS::TripleO::Services::Timezone
     - OS::TripleO::Services::TripleoPackages
     - OS::TripleO::Services::TripleoFirewall

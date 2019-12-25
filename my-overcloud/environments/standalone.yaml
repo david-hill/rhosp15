@@ -1,22 +1,18 @@
 # DEPRECATED.
 # This file has been replaced with environments/standalone/standalone-tripleo.yaml
 resource_registry:
-  OS::TripleO::Services::Tmpwatch: ../deployment/logrotate/tmpwatch-install.yaml
   OS::TripleO::Network::Ports::RedisVipPort: ../network/ports/noop.yaml
   OS::TripleO::Network::Ports::ControlPlaneVipPort: ../deployed-server/deployed-neutron-port.yaml
   OS::TripleO::Standalone::Net::SoftwareConfig: ../net-config-standalone.yaml
   OS::TripleO::NodeExtraConfigPost: ../extraconfig/post_deploy/standalone_post.yaml
 
-  # Manage SELinux
-  OS::TripleO::Services::SELinux: ../deployment/selinux/selinux-baremetal-puppet.yaml
-  OS::TripleO::Services::OpenStackClients: ../deployment/clients/openstack-clients-baremetal-puppet.yaml
+  OS::TripleO::Services::OpenStackClients: ../puppet/services/openstack-clients.yaml
 
   # Disable non-openstack services that are enabled by default
   OS::TripleO::Services::HAproxy: OS::Heat::None
   OS::TripleO::Services::Keepalived: OS::Heat::None
   OS::TripleO::Services::Kubernetes::Master: OS::Heat::None
   OS::TripleO::Services::Kubernetes::Worker: OS::Heat::None
-  OS::TripleO::Services::Redis: OS::Heat::None
 
   # By default we only want the following OpenStack services to be enabled:
   # * Keystone
@@ -43,6 +39,8 @@ resource_registry:
   OS::TripleO::Services::CeilometerAgentCentral: OS::Heat::None
   OS::TripleO::Services::CeilometerAgentNotification: OS::Heat::None
   OS::TripleO::Services::ComputeCeilometerAgent: OS::Heat::None
+  # Congress
+  OS::TripleO::Services::Congress: OS::Heat::None
   # Designate
   OS::TripleO::Services::DesignateApi: OS::Heat::None
   OS::TripleO::Services::DesignateCentral: OS::Heat::None
@@ -94,4 +92,3 @@ parameter_defaults:
   StackAction: CREATE
   SoftwareConfigTransport: POLL_SERVER_HEAT
   EnablePackageInstall: true
-  SwiftReplicas: 1

@@ -49,9 +49,7 @@ conditions:
     - ctlplane
   fixed_ip_not_set:
     equals:
-    - yaql:
-        expression: $.data.where($.get('ip_address'))
-        data: {get_param: FixedIPs}
+    - get_param: FixedIPs
     - []
   net_is_ctlplane_and_fixed_ip_not_set:
     and:

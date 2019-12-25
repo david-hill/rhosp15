@@ -31,12 +31,12 @@ parameters:
                  via parameter_defaults in the resource registry.
     type: json
   NeutronMechanismDrivers:
-    default: 'ovn'
+    default: 'openvswitch'
     description: |
         The mechanism drivers for the Neutron tenant network.
     type: comma_delimited_list
   NeutronTypeDrivers:
-    default: "geneve,vlan,flat"
+    default: "vxlan,vlan,flat,gre"
     description: |
         Comma-separated list of network type driver entrypoints to be loaded.
     type: comma_delimited_list
@@ -66,10 +66,10 @@ parameters:
     description: |
         Comma-separated list of <vni_min>:<vni_max> tuples enumerating ranges
         of VXLAN VNI IDs that are available for tenant network allocation
-    default: ["1:65536", ]
+    default: ["1:4094", ]
     type: comma_delimited_list
   NeutronNetworkType:
-    default: 'geneve'
+    default: 'vxlan'
     description: The tenant network type for Neutron.
     type: comma_delimited_list
   NeutronFirewallDriver:

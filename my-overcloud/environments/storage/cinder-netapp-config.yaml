@@ -9,10 +9,6 @@
 #   A Heat environment file which can be used to enable a
 #   a Cinder NetApp backend, configured via puppet
 parameter_defaults:
-  # The availability zone of the NetApp Cinder backend. When set, it overrides the default CinderStorageAvailabilityZone.
-  # Type: string
-  CinderNetappAvailabilityZone: ''
-
   # 
   # Type: string
   CinderNetappBackendName: tripleo_netapp
@@ -24,6 +20,10 @@ parameter_defaults:
   # 
   # Type: string
   CinderNetappCopyOffloadToolPath: ''
+
+  # 
+  # Type: string
+  CinderNetappEseriesHostType: linux_dm_mp
 
   # 
   # Type: string
@@ -62,10 +62,6 @@ parameter_defaults:
   # Mandatory. This parameter must be set by the user.
   # Type: string
   CinderNetappPassword: <None>
-
-  # Regular expression that will be applied to the names of FlexVol volumes in the Netapp backend that represent pools in Cinder. It may be used to restrict provisioning to the specified FlexVol volumes.
-  # Type: string
-  CinderNetappPoolNameSearchPattern: (.+)
 
   # 
   # Type: string
@@ -128,4 +124,4 @@ parameter_defaults:
   # End static parameters
   # *********************
 resource_registry:
-  OS::TripleO::Services::CinderBackendNetApp: ../../deployment/cinder/cinder-backend-netapp-puppet.yaml
+  OS::TripleO::Services::CinderBackendNetApp: ../puppet/services/cinder-backend-netapp.yaml

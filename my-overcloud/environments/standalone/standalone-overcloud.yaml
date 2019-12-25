@@ -8,27 +8,27 @@
 # description: |
 #   A Heat environment that can be used to deploy a single node all-in-one
 #   node via an Undercloud using the normal Overcloud deployment process.
-#
+#   
 #   By default we only want the following OpenStack services to be enabled:
 #     * Keystone
 #     * Nova (and related)
 #     * Neutron (and related)
 #     * Glance
 #     * Cinder
-#     * Swift (single replica mode)
+#     * Swift
 #     * Horizon
 #   This file disables any other OpenStack services that would normally be
 #   enabled.
-#
+#   
 #   openstack overcloud roles generate -o ~/roles_data.yaml Standalone
 parameter_defaults:
   # DNS servers to use for the Overcloud (2 max for some implementations). If not set the nameservers configured in the ctlplane subnet's dns_nameservers attribute will be used.
   # Type: comma_delimited_list
   DnsServers: []
 
-  # NTP servers list. Defaulted to a set of pool.ntp.org servers in order to have a sane default for Pacemaker deployments when not configuring this parameter by default.
+  # NTP servers list. Defaulted to pool.ntp.org in order to have a sane default for Pacemaker deployments when not configuring this parameter by default.
   # Type: comma_delimited_list
-  NtpServer: ['0.pool.ntp.org', '1.pool.ntp.org', '2.pool.ntp.org', '3.pool.ntp.org']
+  NtpServer: ['pool.ntp.org']
 
   # Name of the flavor for Standalone nodes
   # Type: string
@@ -41,10 +41,6 @@ parameter_defaults:
   # Format for Standalone node hostnames Note %index% is translated into the index of the node, e.g 0/1/2 etc and %stackname% is replaced with the stack name e.g overcloud
   # Type: string
   StandaloneHostnameFormat: '%stackname%-standalone-%index%'
-
-  # How many replicas to use in the swift rings.
-  # Type: number
-  SwiftReplicas: 1
 
 resource_registry:
   OS::TripleO::Services::AodhApi: OS::Heat::None
@@ -59,6 +55,7 @@ resource_registry:
   OS::TripleO::Services::CeilometerAgentCentral: OS::Heat::None
   OS::TripleO::Services::CeilometerAgentNotification: OS::Heat::None
   OS::TripleO::Services::ComputeCeilometerAgent: OS::Heat::None
+  OS::TripleO::Services::Congress: OS::Heat::None
   OS::TripleO::Services::DesignateApi: OS::Heat::None
   OS::TripleO::Services::DesignateCentral: OS::Heat::None
   OS::TripleO::Services::DesignateMDNS: OS::Heat::None
@@ -92,9 +89,8 @@ resource_registry:
   OS::TripleO::Services::MistralEngine: OS::Heat::None
   OS::TripleO::Services::MistralEventEngine: OS::Heat::None
   OS::TripleO::Services::MistralExecutor: OS::Heat::None
-  OS::TripleO::Services::OpenStackClients: ../../deployment/clients/openstack-clients-baremetal-puppet.yaml
+  OS::TripleO::Services::OpenStackClients: ../../puppet/services/openstack-clients.yaml
   OS::TripleO::Services::PankoApi: OS::Heat::None
-  OS::TripleO::Services::SELinux: ../../deployment/selinux/selinux-baremetal-puppet.yaml
   OS::TripleO::Services::SaharaApi: OS::Heat::None
   OS::TripleO::Services::SaharaEngine: OS::Heat::None
   OS::TripleO::Services::Tacker: OS::Heat::None

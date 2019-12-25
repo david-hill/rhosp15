@@ -58,20 +58,23 @@ parameters:
   OVNQosDriver:
     description: OVN notification driver for Neutron QOS service plugin
     type: string
-    default: ovn-qos
+    default: NULL
   NeutronGeneveMaxHeaderSize:
     description: Geneve encapsulation header size
     type: number
     default: 38
   NeutronEnableDVR:
     description: Enable Neutron DVR.
-    default: ''
-    type: string
+    default: false
+    type: boolean
   OVNMetadataEnabled:
     description: Whether Metadata Service has to be enabled
     type: boolean
     default: true
-  # NOTE(anil): OVN supports only VLAN, geneve and flat networks
+  # NOTE(anil): OVN supports only VLAN and geneve networks. But VLAN
+  # tenant networks have a limited support in OVN. So allowing only
+  # geneve networks until the problems are addressed.
+  # See bug #1767070 for more information.
   NeutronNetworkType:
     default: 'geneve'
     description: The tenant network type for Neutron.
@@ -79,25 +82,10 @@ parameters:
     constraints:
       - allowed_values:
           - geneve
-          - vlan
-          - flat
   OVNDnsServers:
     default: []
     description: List of servers to use as as dns forwarders
     type: comma_delimited_list
-  NeutronVhostuserSocketDir:
-    default: ""
-    description: The vhost-user socket directory for OVS
-    type: string
-    tags:
-      - role_specific
-
-conditions:
-  neutron_dvr_unset: {equals : [{get_param: NeutronEnableDVR}, '']}
-  vhostuser_dir_set:
-    or:
-    - {not: {equals: [{get_param: NeutronVhostuserSocketDir}, ""]}}
-    - {not: {equals: [{get_param: [RoleParameters, NeutronVhostuserSocketDir]}, ""]}}
 
 resources:
 
@@ -127,24 +115,9 @@ outputs:
             neutron::plugins::ml2::ovn::ovn_metadata_enabled: {get_param: OVNMetadataEnabled}
             neutron::server::qos_notification_drivers: {get_param: OVNQosDriver}
             neutron::plugins::ml2::max_header_size: {get_param: NeutronGeneveMaxHeaderSize}
+            neutron::plugins::ml2::ovn::dvr_enabled: {get_param: NeutronEnableDVR}
             neutron::plugins::ml2::ovn::dns_servers: {get_param: OVNDnsServers}
             neutron::plugins::ml2::tenant_network_types: {get_param: NeutronNetworkType}
-          -
-            if:
-              - neutron_dvr_unset
-              - neutron::plugins::ml2::ovn::dvr_enabled: true
-              - neutron::plugins::ml2::ovn::dvr_enabled: {get_param: NeutronEnableDVR}
-          -
-            if:
-              - vhostuser_dir_set
-              - map_replace:
-                - map_replace:
-                  - neutron::plugins::ml2::ovn::vhostuser_socket_dir: NeutronVhostuserSocketDir
-                  - values: {get_param: RoleParameters}
-                - values:
-                    NeutronVhostuserSocketDir: {get_param: NeutronVhostuserSocketDir}
-              - {}
-
       step_config: |
         include ::tripleo::profile::base::neutron::plugins::ml2
       metadata_settings:

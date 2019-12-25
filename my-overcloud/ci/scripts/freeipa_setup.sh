@@ -10,6 +10,9 @@
 #   - HostsSecret
 #   - ProvisioningCIDR: If set, it adds the given CIDR to the provisioning
 #                       interface (which is hardcoded to eth1)
+#   - UsingNovajoin: If unset, we pre-provision the service principals
+#                    needed for the overcloud deploy. If set, we skip this,
+#                    since novajoin will do it.
 #   - FreeIPAExtraArgs: Additional parameters to be passed to FreeIPA script
 #
 set -eux
@@ -27,6 +30,7 @@ export AdminPassword=${AdminPassword:-""}
 export UndercloudFQDN=${UndercloudFQDN:-""}
 export HostsSecret=${HostsSecret:-""}
 export ProvisioningCIDR=${ProvisioningCIDR:-""}
+export UsingNovajoin=${UsingNovajoin:-""}
 export FreeIPAExtraArgs=${FreeIPAExtraArgs:-""}
 
 if [ -n "$ProvisioningCIDR" ]; then
@@ -39,20 +43,11 @@ fi
 echo "nameserver 8.8.8.8" >> /etc/resolv.conf
 echo "nameserver 8.8.4.4" >> /etc/resolv.conf
 
-if rpm -q openstack-dashboard; then
-    yum -q -y remove openstack-dashboard
-fi
-
-source /etc/os-release
-# RHEL8.0 does not have epel yet
-if [[ $VERSION_ID == 8* ]]; then
-    PKGS="ipa-server ipa-server-dns rng-tools git"
-else
-    PKGS="ipa-server ipa-server-dns epel-release rng-tools mod_nss git haveged"
-fi
+yum -q -y remove openstack-dashboard
 
 # Install the needed packages
-yum -q install -y $PKGS
+yum -q install -y ipa-server ipa-server-dns epel-release rng-tools mod_nss git
+yum -q install -y haveged
 
 # Prepare hostname
 hostnamectl set-hostname --static $Hostname
@@ -92,13 +87,11 @@ EOF
 iptables-restore < freeipa-iptables-rules.txt
 
 # Entropy generation; otherwise, ipa-server-install will lag.
-if [[ $VERSION_ID != 8* ]]; then
-   chkconfig haveged on
-   systemctl start haveged
+chkconfig haveged on
+systemctl start haveged
 
-   # Remove conflicting httpd configuration
-   rm -f /etc/httpd/conf.d/ssl.conf
-fi
+# Remove conflicting httpd configuration
+rm -f /etc/httpd/conf.d/ssl.conf
 
 # Set up FreeIPA
 ipa-server-install -U -r `hostname -d|tr "[a-z]" "[A-Z]"` \
@@ -115,4 +108,15 @@ klist
 
 if [ "$?" = '1' ]; then
     exit 1
+fi
+
+if [ -z "$UsingNovajoin" ]; then
+    # Create undercloud host
+    ipa host-add $UndercloudFQDN --password=$HostsSecret --force
+
+    # Create overcloud nodes and services
+    git clone https://github.com/JAORMX/freeipa-tripleo-incubator.git
+    cd freeipa-tripleo-incubator
+    python create_ipa_tripleo_host_setup.py -w $HostsSecret -d $(hostname -d) \
+        --controller-count 1 --compute-count 1
 fi

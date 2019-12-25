@@ -1,12 +1,8 @@
-{%- set _networks = [] -%}
-{%- for network in networks if network.enabled|default(true) -%}
-  {%- set _networks = _networks.append(network.name) -%}
-{%- endfor -%}
 heat_template_version: rocky
 description: 'All Nodes Config for Puppet'
 
 parameters:
-{%- for network in networks if network.vip|default(false) and network.enabled|default(true) %}
+{%- for network in networks if network.vip|default(false) %}
   cloud_name_{{network.name_lower}}:
     type: string
 {%- endfor %}
@@ -24,9 +20,9 @@ parameters:
     type: json
   short_service_bootstrap_node:
     type: json
-  service_bootstrap_node_ip:
-    type: json
   controller_names:
+    type: comma_delimited_list
+  cellv2_discovery_hosts:
     type: comma_delimited_list
   NetVipMap:
     type: json
@@ -70,18 +66,12 @@ parameters:
     default: {}
     description: Map of extra data (hieradata) to set on each node.
 
-{%- for network in networks if network.enabled|default(true) %}
+{%- for network in networks %}
   {{network.name}}NetName:
     default: {{network.name_lower}}
     description: The name of the {{network.name_lower}} network.
     type: string
 {%- endfor %}
-  ContainerCli:
-    type: string
-    default: 'podman'
-    description: CLI tool used to manage containers.
-    constraints:
-      - allowed_values: ['docker', 'podman']
 
 resources:
 
@@ -141,7 +131,6 @@ resources:
                 - {get_param: service_node_names}
                 - {get_param: short_service_node_names}
                 - {get_param: short_service_bootstrap_node}
-                - {get_param: service_bootstrap_node_ip}
                 - controller_node_ips:
                     list_join:
                     - ','
@@ -150,10 +139,14 @@ resources:
                     list_join:
                     - ','
                     - {get_param: controller_names}
+                - cellv2_discovery_hosts:
+                    list_join:
+                    - ','
+                    - {get_param: cellv2_discovery_hosts}
                   deploy_identifier: {get_param: DeployIdentifier}
+                  update_identifier: {get_param: UpdateIdentifier}
                   stack_action: {get_param: StackAction}
                   stack_update_type: {get_param: StackUpdateType}
-                  container_cli: {get_param: ContainerCli}
 
   allNodesConfigImpl:
     type: OS::Heat::StructuredConfig
@@ -163,6 +156,7 @@ resources:
         datafiles:
           bootstrap_node:
             bootstrap_nodeid: {get_input: bootstrap_nodeid}
+            bootstrap_nodeid_ip: {get_input: bootstrap_nodeid_ip}
           all_nodes: {get_attr: [allNodesConfigValue, value]}
           vip_data:
             map_merge:
@@ -194,47 +188,33 @@ resources:
                   get_param: [NetVipMap, {get_param: [ServiceNetMap, keystone_admin_api_network]}]
                 keystone_public_api_vip:
                   get_param: [NetVipMap, {get_param: [ServiceNetMap, keystone_public_api_network]}]
-{%- if 'External' in _networks %}
                 public_virtual_ip: {get_param: [NetVipMap, {get_param: ExternalNetName}]}
-{%- else %}
-                public_virtual_ip: {get_param: [NetVipMap, ctlplane]}
-{%- endif %}
                 controller_virtual_ip: {get_param: [NetVipMap, ctlplane]}
-{%- if 'InternalApi' in _networks %}
                 # the internal_api_virtual_ip is needed for contrail only
                 internal_api_virtual_ip: {get_param: [NetVipMap, {get_param: InternalApiNetName}]}
-{%- endif %}
                 network_virtual_ips:
-                  ctlplane:
-                    ip_address: {get_param: [NetVipMap, ctlplane]}
-                    index: 1
-{%- for network in networks if network.vip|default(false) and network.enabled|default(true) %}
+{%- for network in networks if network.vip|default(false) %}
 # External virtual ip is currently being handled separately as public_virtual_ip.
 # Likewise, optional StorageNFS virtual ip is handled separately as ganesha_vip.
 {%- if network.name != 'External' and network.name != 'StorageNFS' %}
                   {{network.name_lower}}:
                     ip_address: {get_param: [NetVipMap, {get_param: {{network.name}}NetName}]}
-                    index: {{loop.index + 1}}
+                    index: {{loop.index}}
 {%- endif %}
 {%- endfor %}
                 redis_vip: {get_param: RedisVirtualIP}
-{%- for network in networks if network.name == 'StorageNFS' and network.enabled|default(true) %}
+{%- for network in networks if network.name == 'StorageNFS' %}
                 ganesha_vip: {get_param: [NetVipMap, {get_param: StorageNFSNetName}]}
 {%- endfor %}
                 # public_virtual_ip and controller_virtual_ip are needed in
                 # both HAproxy & keepalived.
-{%- if 'External' in _networks %}
                 tripleo::haproxy::public_virtual_ip: {get_param: [NetVipMap, {get_param: ExternalNetName}]}
-                tripleo::keepalived::public_virtual_ip: {get_param: [NetVipMap, {get_param: ExternalNetName}]}
-{%- else %}
-                tripleo::haproxy::public_virtual_ip: {get_param: [NetVipMap, ctlplane]}
-                tripleo::keepalived::public_virtual_ip: {get_param: [NetVipMap, ctlplane]}
-{%- endif %}
                 tripleo::haproxy::controller_virtual_ip: {get_param: [NetVipMap, ctlplane]}
+                tripleo::keepalived::public_virtual_ip: {get_param: [NetVipMap, {get_param: ExternalNetName}]}
                 tripleo::keepalived::controller_virtual_ip: {get_param: [NetVipMap, ctlplane]}
                 tripleo::keepalived::redis_virtual_ip: {get_param: RedisVirtualIP}
                 tripleo::redis_notification::haproxy_monitor_ip: {get_param: [NetVipMap, ctlplane]}
-{%- for network in networks if network.vip|default(false) and network.enabled|default(true) %}
+{%- for network in networks if network.vip|default(false) %}
                 cloud_name_{{network.name_lower}}: {get_param: cloud_name_{{network.name_lower}}}
 {%- endfor %}
                 cloud_name_ctlplane: {get_param: cloud_name_ctlplane}

@@ -21,7 +21,7 @@ parameter_defaults:
 
   # Format for Compute node hostnames Note %index% is translated into the index of the node, e.g 0/1/2 etc and %stackname% is replaced with the stack name e.g overcloud
   # Type: string
-  ComputeHostnameFormat: '%stackname%-novacompute-%index%'
+  ComputeHostnameFormat: '%stackname%-compute-%index%'
 
   # Format for Controller node hostnames Note %index% is translated into the index of the node, e.g 0/1/2 etc and %stackname% is replaced with the stack name e.g overcloud
   # Type: string

@@ -63,22 +63,18 @@ outputs:
         step_config: ''
       docker_config: {}
       config_settings:
-        tripleo::skydive_analyzer::firewall_rules:
+        tripleo.skydive_analyzer.firewall_rules:
           '150 skydive_analyzer':
-            dport:
-              - 8082
-              - 12379
-              - 12380
+            dport: 8082
+            proto: tcp
       external_deploy_tasks:
         - name: Skydive deployment
           when: step == '5'
           block:
             - name: create skydive temp dirs
-              become: true
               file:
                 path: "{{item}}"
                 state: directory
-                owner: "{{ansible_user}}"
               with_items:
                 - "{{playbook_dir}}/skydive"
 
@@ -96,10 +92,9 @@ outputs:
                 dest: "{{playbook_dir}}/skydive/global_defaults.yml"
                 content: |
                   skydive_docker_registry: {{skydive_analyzer_docker_image | regex_replace("([^/]*).*", "\1")}}
-                  skydive_analyzer_docker_image_tag: {{skydive_analyzer_docker_image | regex_replace(".*:")}}
+                  skydive_docker_image_tag: {{skydive_analyzer_docker_image | regex_replace(".*:")}}
                   skydive_analyzer_docker_image: {{skydive_analyzer_docker_image | regex_replace("[^/]*/([^:]*).*", "\1")}}
                   skydive_analyzer_docker_command: "/usr/bin/skydive analyzer --conf /etc/skydive.yml"
-                  skydive_agent_docker_image_tag: {{skydive_agent_docker_image | regex_replace(".*:")}}
                   skydive_agent_docker_image: {{skydive_agent_docker_image | regex_replace("[^/]*/([^:]*).*", "\1")}}
                   skydive_agent_docker_command: "/usr/bin/skydive agent --conf /etc/skydive.yml"
                   os_auth_url: {{overcloud_keystone_url}}/v3
@@ -110,7 +105,6 @@ outputs:
                   skydive_os_auth_url: {{os_auth_url}}/v3
                   skydive_os_service_region_name: {{os_region_name}}
                   skydive_deployment_mode: container
-                  skydive_deployment_source: tripleo
                   skydive_flow_protocol: websocket
                   skydive_topology_probes:
                     - neutron
@@ -135,7 +129,7 @@ outputs:
                         ansible_become: true
                         skydive_listen_ip: {{hostvars.raw_get(host)['ctlplane_ip']}}
                         {% if skydive_vars.analyzers is defined -%}
-                        {{skydive_vars.analyzers|to_nice_yaml(indent=6)}}
+                        {{skydive_vars.analyzers|to_nice_yaml()|indent(6)}}
                         {%- endif %}
 
                       {% endfor %}
@@ -149,7 +143,7 @@ outputs:
                         ansible_become: true
                         skydive_listen_ip: {{hostvars.raw_get(host)['ctlplane_ip']}}
                         {% if skydive_vars.agents is defined -%}
-                        {{skydive_vars.agents|to_nice_yaml(indent=6)}}
+                        {{skydive_vars.agents|to_nice_yaml()|indent(6)}}
                         {%- endif %}
 
                       {% endfor %}
@@ -161,10 +155,8 @@ outputs:
 
                   set -e
 
-                  ANSIBLE_CONFIG="{{playbook_dir}}/ansible.cfg"
                   ANSIBLE_HOST_KEY_CHECKING=False
                   ansible-playbook
-                  {% if ansible_ssh_private_key_file is defined %}--private-key '{{ansible_ssh_private_key_file}}'{% endif %}
                   -i '{{playbook_dir}}/skydive/inventory.yml'
                   --extra-vars '@{{playbook_dir}}/skydive/global_defaults.yml'
                   --extra-vars '@{{playbook_dir}}/skydive/global_vars.yml'
@@ -173,7 +165,6 @@ outputs:
                 mode: 0700
 
             - name: run skydive-deploy.sh (immediate log at {{playbook_dir}}/skydive/playbook.log)
-              become: true
               shell: |
                 {{playbook_dir}}/skydive/skydive-deploy.sh 2>&1 | tee {{playbook_dir}}/skydive/playbook.log
                 exit ${PIPESTATUS[0]}

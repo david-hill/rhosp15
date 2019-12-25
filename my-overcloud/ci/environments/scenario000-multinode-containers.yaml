@@ -5,13 +5,24 @@ resource_registry:
   # Since the OVB jobs also test this functionality we can shut it off here.
   OS::TripleO::AllNodes::Validation: ../common/all-nodes-validation-disabled.yaml
 
-  OS::TripleO::Services::OsloMessagingRpc: ../../deployment/rabbitmq/rabbitmq-messaging-rpc-container-puppet.yaml
-  OS::TripleO::Services::OsloMessagingNotify: ../../deployment/rabbitmq/rabbitmq-messaging-notify-shared-puppet.yaml
+  OS::TripleO::Services::OsloMessagingRpc: ../../docker/services/pacemaker/rpc-rabbitmq.yaml
+  OS::TripleO::Services::OsloMessagingNotify: ../../docker/services/messaging/notify-rabbitmq-shared.yaml
+  OS::TripleO::Services::HAproxy: ../../docker/services/pacemaker/haproxy.yaml
+  OS::TripleO::Services::Pacemaker: ../../puppet/services/pacemaker.yaml
+  OS::TripleO::Services::PacemakerRemote: ../../puppet/services/pacemaker_remote.yaml
+  OS::TripleO::Services::Clustercheck: ../../docker/services/pacemaker/clustercheck.yaml
+  OS::TripleO::Services::MySQL: ../../docker/services/pacemaker/database/mysql.yaml
+  OS::TripleO::Services::Keepalived: OS::Heat::None
+  OS::TripleO::Tasks::ControllerPreConfig: OS::Heat::None
+  OS::TripleO::Tasks::ControllerPostConfig: OS::Heat::None
+  OS::TripleO::Tasks::ControllerPostPuppetRestart: ../../extraconfig/tasks/post_puppet_pacemaker_restart.yaml
 
 parameter_defaults:
   ControllerServices:
     - OS::TripleO::Services::CACerts
+    - OS::TripleO::Services::Clustercheck
     - OS::TripleO::Services::ContainerImagePrepare
+    - OS::TripleO::Services::Docker
     - OS::TripleO::Services::Kernel
     - OS::TripleO::Services::Keystone
     - OS::TripleO::Services::MySQL
@@ -21,9 +32,9 @@ parameter_defaults:
     - OS::TripleO::Services::HAproxy
     - OS::TripleO::Services::Keepalived
     - OS::TripleO::Services::Memcached
-    - OS::TripleO::Services::Podman
+    - OS::TripleO::Services::Pacemaker
+    - OS::TripleO::Services::Ntp
     - OS::TripleO::Services::Snmp
-    - OS::TripleO::Services::Timesync
     - OS::TripleO::Services::Timezone
     - OS::TripleO::Services::TripleoPackages
     - OS::TripleO::Services::TripleoFirewall
@@ -31,4 +42,3 @@ parameter_defaults:
   Debug: true
   DockerPuppetDebug: True
   NotificationDriver: 'noop'
-  ContainerCli: podman

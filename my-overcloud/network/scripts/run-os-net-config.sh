@@ -38,23 +38,20 @@ function is_local_ip() {
 
 function ping_metadata_ip() {
   local METADATA_IP=$(get_metadata_ip)
-  local METADATA_IP_PING_TIMEOUT=60
 
   if [ -n "$METADATA_IP" ] && ! is_local_ip $METADATA_IP; then
 
     echo -n "Trying to ping metadata IP ${METADATA_IP}..."
 
-    _IP="$(getent hosts $METADATA_IP | awk '{ print $1 }')"
     _ping=ping
-    if [[ "$_IP" =~ ":" ]] ; then
+    if [[ "$METADATA_IP" =~ ":" ]] ; then
         _ping=ping6
     fi
 
     local COUNT=0
     until $_ping -c 1 $METADATA_IP &> /dev/null; do
       COUNT=$(( $COUNT + 1 ))
-      sleep 1
-      if [ $COUNT -eq $METADATA_IP_PING_TIMEOUT ]; then
+      if [ $COUNT -eq 10 ]; then
         echo "FAILURE"
         echo "$METADATA_IP is not pingable." >&2
         exit 1
@@ -123,12 +120,6 @@ if [ -n '$network_config' ]; then
         trap configure_safe_defaults EXIT
     fi
 
-    # Backup the old /etc/os-net-config/config.json, if it exists
-    DATETIME=`date +"%Y-%m-%dT%H:%M:%S"`
-    if [ -f /etc/os-net-config/config.json ]; then
-        mv /etc/os-net-config/config.json /etc/os-net-config/config.json.$DATETIME
-    fi
-
     mkdir -p /etc/os-net-config
     # Note these variables come from the calling heat SoftwareConfig
     echo '$network_config' > /etc/os-net-config/config.json
@@ -163,9 +154,9 @@ if [ -n '$network_config' ]; then
 
     # Remove files used by os-apply-config for old style configs
     if [ -f /usr/libexec/os-apply-config/templates/etc/os-net-config/config.json ]; then
-        mv /usr/libexec/os-apply-config/templates/etc/os-net-config/config.json /usr/libexec/os-apply-config/templates/etc/os-net-config/config.json.$DATETIME
+        rm /usr/libexec/os-apply-config/templates/etc/os-net-config/config.json
     fi
     if [ -f /usr/libexec/os-apply-config/templates/etc/os-net-config/element_config.json ]; then
-        mv /usr/libexec/os-apply-config/templates/etc/os-net-config/element_config.json /usr/libexec/os-apply-config/templates/etc/os-net-config/element_config.json.$DATETIME
+        rm /usr/libexec/os-apply-config/templates/etc/os-net-config/element_config.json
     fi
 fi

@@ -100,6 +100,37 @@ are re-asserted when applying latter ones.
 
    5) Service activation (Pacemaker)
 
+It is also possible to use Mistral actions or workflows together with
+a deployment step, these are executed before the main configuration run.
+To describe actions or workflows from within a service use:
+
+  * workflow_tasks: One or more workflow task properties
+
+which expects a map where the key is the step and the value a list of
+dictionaries descrbing each a workflow task, for example::
+
+  workflow_tasks:
+    step2:
+      - name: echo
+        action: std.echo output=Hello
+    step3:
+      - name: external
+        workflow: my-pre-existing-workflow-name
+        input:
+          workflow_param1: value
+          workflow_param2: value
+
+The Heat guide for the `OS::Mistral::Workflow task property
+<https://docs.openstack.org/developer/heat/template_guide/openstack.html#OS::Mistral::Workflow-prop-tasks>`_
+has more details about the expected dictionary.
+
+  * external_deploy_tasks: Ansible tasks to be run each step on the undercloud
+    where a variable "step" is provided to enable conditionally running tasks
+    at a given step.
+
+  * external_post_deploy_tasks: Ansible tasks to be run on the undercloud
+    after all other deploy steps have completed.
+
 Batch Upgrade Steps (deprecated)
 --------------------------------
 
@@ -178,24 +209,6 @@ step|int == 1" for the first step, "== 2" for the second, etc.
 Note that the services are not started in the upgrade tasks - we instead re-run
 puppet which does any reconfiguration required for the new version, then starts
 the services.
-
-When running an OS upgrade via the tags `system_upgrade_prepare` and
-`system_upgrade_run`, or the combined tag `system_upgrade`, the steps
-corellate to the following:
-
-   1) Any pre-service-stop actions. (`system_upgrade_prepare`)
-
-   2) Stop all services. (`system_upgrade_prepare`)
-
-   3) Post-service-stop actions like removing packages before the
-      upgrade. (`system_upgrade_prepare`)
-
-   4) Step reserved for the `tripleo-packages` service. Only package
-      download for upgrade (under `system_upgrade_prepare` tag), and
-      reboot for performing the offline upgrade (under
-      `system_upgrade_run` tag) happens here.
-
-   5) Any post-upgrade tasks (`system_upgrade_run`).
 
 Nova Server Metadata Settings
 -----------------------------

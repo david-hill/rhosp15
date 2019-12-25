@@ -26,6 +26,7 @@ resource_registry:
   OS::TripleO::Services::NovaScheduler: OS::Heat::None
   OS::TripleO::Services::NovaCompute: OS::Heat::None
   OS::TripleO::Services::NovaLibvirt: OS::Heat::None
+  OS::TripleO::Services::Docker: ../../puppet/services/docker.yaml
 
 
 
@@ -39,8 +40,8 @@ parameter_defaults:
     - OS::TripleO::Services::ContainerImagePrepare
     - OS::TripleO::Services::Docker
     - OS::TripleO::Services::Kernel
+    - OS::TripleO::Services::Ntp
     - OS::TripleO::Services::Snmp
-    - OS::TripleO::Services::Timesync
     - OS::TripleO::Services::Timezone
     - OS::TripleO::Services::TripleoPackages
     - OS::TripleO::Services::TripleoFirewall
@@ -51,8 +52,8 @@ parameter_defaults:
     - OS::TripleO::Services::CACerts
     - OS::TripleO::Services::Docker
     - OS::TripleO::Services::Kernel
+    - OS::TripleO::Services::Ntp
     - OS::TripleO::Services::Snmp
-    - OS::TripleO::Services::Timesync
     - OS::TripleO::Services::Timezone
     - OS::TripleO::Services::TripleoPackages
     - OS::TripleO::Services::TripleoFirewall

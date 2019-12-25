@@ -15,13 +15,12 @@ resource_registry:
 parameter_defaults:
   ComputeServices:
     - OS::TripleO::Services::Aide
-    - OS::TripleO::Services::BootParams
     - OS::TripleO::Services::CACerts
     - OS::TripleO::Services::CertmongerUser
     - OS::TripleO::Services::CephClient
     - OS::TripleO::Services::CephExternal
-    - OS::TripleO::Services::Timesync
     - OS::TripleO::Services::Timezone
+    - OS::TripleO::Services::Ntp
     - OS::TripleO::Services::ContainersLogrotateCrond
     - OS::TripleO::Services::Snmp
     - OS::TripleO::Services::Sshd
@@ -43,8 +42,8 @@ parameter_defaults:
     - OS::TripleO::Services::Tuned
     - OS::TripleO::Services::OpenDaylightOvs
     - OS::TripleO::Services::SensuClient
+    - OS::TripleO::Services::SkydiveAgent
     - OS::TripleO::Services::Fluentd
-    - OS::TripleO::Services::IpaClient
     - OS::TripleO::Services::Ipsec
     - OS::TripleO::Services::AuditD
     - OS::TripleO::Services::Collectd
@@ -60,4 +59,4 @@ parameter_defaults:
     - OS::TripleO::Services::RsyslogSidecar
     - OS::TripleO::Services::LoginDefs
     - OS::TripleO::Services::Rhsm
-    - OS::TripleO::Services::Podman
+    - OS::TripleO::Services::Ptp

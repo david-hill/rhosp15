@@ -1,12 +1,15 @@
-#!/usr/libexec/platform-python
+#!/usr/bin/env python
 
 import json
 import netaddr
 import os
-import openstack
+import os_client_config
 import subprocess
 
 CTLPLANE_NETWORK_NAME = 'ctlplane'
+
+AUTH_URL = os.environ['auth_url']
+ADMIN_PASSWORD = os.environ['admin_password']
 CONF = json.loads(os.environ['config'])
 
 
@@ -49,6 +52,12 @@ def _ensure_neutron_network(sdk):
                 provider_physical_network=CONF['physical_network'],
                 mtu=CONF['mtu'])
             print('INFO: Network created %s' % network)
+            # (hjensas) Delete the default segment, we create a new segment
+            # per subnet later.
+            segments = list(sdk.network.segments(network_id=network.id))
+            sdk.network.delete_segment(segments[0].id)
+            print('INFO: Default segment on network %s deleted.' %
+                  network.name)
         else:
             network = sdk.network.update_network(
                 network[0].id,
@@ -61,12 +70,9 @@ def _ensure_neutron_network(sdk):
 
     return network
 
-def _get_nameservers_for_version(servers, ipversion):
-    """Get list of nameservers for an IP version"""
-    return [s for s in servers if netaddr.IPAddress(s).version == ipversion]
 
 def _neutron_subnet_create(sdk, network_id, cidr, gateway, host_routes,
-                           allocation_pools, name, segment_id, dns_nameservers):
+                           allocation_pool, name, segment_id, dns_nameservers):
     try:
         if netaddr.IPNetwork(cidr).version == 6:
             subnet = sdk.network.create_subnet(
@@ -77,11 +83,10 @@ def _neutron_subnet_create(sdk, network_id, cidr, gateway, host_routes,
                 ip_version='6',
                 ipv6_address_mode='dhcpv6-stateless',
                 ipv6_ra_mode='dhcpv6-stateless',
-                allocation_pools=allocation_pools,
+                allocation_pools=allocation_pool,
                 network_id=network_id,
                 segment_id=segment_id,
-                dns_nameservers=_get_nameservers_for_version(dns_nameservers,
-                                                             6))
+                dns_nameservers=dns_nameservers)
         else:
             subnet = sdk.network.create_subnet(
                 name=name,
@@ -90,11 +95,10 @@ def _neutron_subnet_create(sdk, network_id, cidr, gateway, host_routes,
                 host_routes=host_routes,
                 enable_dhcp=True,
                 ip_version='4',
-                allocation_pools=allocation_pools,
+                allocation_pools=allocation_pool,
                 network_id=network_id,
                 segment_id=segment_id,
-                dns_nameservers=_get_nameservers_for_version(dns_nameservers,
-                                                             4))
+                dns_nameservers=dns_nameservers)
             print('INFO: Subnet created %s' % subnet)
     except Exception:
         print('ERROR: Create subnet %s failed.' % name)
@@ -104,38 +108,28 @@ def _neutron_subnet_create(sdk, network_id, cidr, gateway, host_routes,
 
 
 def _neutron_subnet_update(sdk, subnet_id, cidr, gateway, host_routes,
-                           allocation_pools, name, dns_nameservers):
+                           allocation_pool, name, dns_nameservers):
     try:
         if netaddr.IPNetwork(cidr).version == 6:
             subnet = sdk.network.update_subnet(
                 subnet_id,
                 name=name,
                 gateway_ip=gateway,
-                allocation_pools=allocation_pools,
-                dns_nameservers=_get_nameservers_for_version(dns_nameservers,
-                                                             6))
+                allocation_pools=allocation_pool,
+                dns_nameservers=dns_nameservers)
         else:
             subnet = sdk.network.update_subnet(
                 subnet_id,
                 name=name,
                 gateway_ip=gateway,
                 host_routes=host_routes,
-                allocation_pools=allocation_pools,
-                dns_nameservers=_get_nameservers_for_version(dns_nameservers,
-                                                             4))
+                allocation_pools=allocation_pool,
+                dns_nameservers=dns_nameservers)
         print('INFO: Subnet updated %s' % subnet)
     except Exception:
         print('ERROR: Update of subnet %s failed.' % name)
         raise
 
-
-def _neutron_add_subnet_segment_association(sdk, subnet_id, segment_id):
-    try:
-        subnet = sdk.network.update_subnet(subnet_id, segment_id=segment_id)
-        print('INFO: Segment association added to Subnet  %s' % subnet)
-    except Exception:
-        print('ERROR: Associationg segment with subnet %s failed.' % subnet_id)
-        raise
 
 def _neutron_segment_create(sdk, name, network_id, phynet):
     try:
@@ -192,110 +186,88 @@ def _get_segment(sdk, phy, network_id):
     return False if not segment else segment[0]
 
 
-def _set_network_tags(sdk, network, tags):
-    try:
-        sdk.network.set_tags(network, tags=tags)
-        print('INFO: Tags %s added to network %s.' % (tags, network.name))
-    except Exception:
-        print('ERROR: Setting tags %s on network %s failed.' %
-              (tags, network.name))
-        raise
-
-
-def _local_neutron_segments_and_subnets(sdk, ctlplane_id, net_cidrs):
-    """Create's and updates the ctlplane subnet on the segment that is local to
-    the underclud.
-    """
+def config_neutron_segments_and_subnets(sdk, ctlplane_id):
     s = CONF['subnets'][CONF['local_subnet']]
-    name = CONF['local_subnet']
     subnet = _get_subnet(sdk, s['NetworkCidr'], ctlplane_id)
-    segment = _get_segment(sdk, CONF['physical_network'], ctlplane_id)
-    host_routes = [{'destination': '169.254.169.254/32',
-                    'nexthop': CONF['local_ip']}]
-    host_routes += s['HostRoutes']
-    if subnet:
-        if CONF['enable_routed_networks'] and subnet.segment_id == None:
-            # The subnet exists and does not have a segment association. Since
-            # routed networks is enabled in the configuration, we need to
-            # migrate the existing non-routed networks subnet to a routed
-            # networks subnet by associating the network segment_id with the
-            # subnet.
-            _neutron_add_subnet_segment_association(sdk, subnet.id, segment.id)
+    if subnet and not subnet.segment_id:
+        print('WARNING: Local subnet %s already exists and is not associated '
+              'with a network segment. Any additional subnets will be '
+              'ignored.' % CONF['local_subnet'])
+        host_routes = [{'destination': '169.254.169.254/32',
+                        'nexthop': CONF['local_ip']}]
+        allocation_pool = [{'start': s['DhcpRangeStart'],
+                            'end': s['DhcpRangeEnd']}]
         _neutron_subnet_update(
             sdk, subnet.id, s['NetworkCidr'], s['NetworkGateway'], host_routes,
-            s.get('AllocationPools'), name, CONF['nameservers'])
-    else:
-        if CONF['enable_routed_networks']:
-            segment_id = segment.id
-        else:
-            segment_id = None
-        subnet = _neutron_subnet_create(
-            sdk, ctlplane_id, s['NetworkCidr'], s['NetworkGateway'],
-            host_routes, s.get('AllocationPools'), name, segment_id,
-            CONF['nameservers'])
+            allocation_pool, CONF['local_subnet'], CONF['nameservers'])
         # If the subnet is IPv6 we need to start a router so that router
-        #  advertisments are sent out for stateless IP addressing to work.
+        # advertisments are sent out for stateless IP addressing to work.
         if netaddr.IPNetwork(s['NetworkCidr']).version == 6:
-            _ensure_neutron_router(sdk, name, subnet.id)
-    net_cidrs.append(s['NetworkCidr'])
+            _ensure_neutron_router(sdk, CONF['local_subnet'], subnet.id)
+    else:
+        for name in CONF['subnets']:
+            s = CONF['subnets'][name]
 
-    return net_cidrs
+            phynet = name
+            metadata_nexthop = s['NetworkGateway']
+            if name == CONF['local_subnet']:
+                phynet = CONF['physical_network']
+                metadata_nexthop = CONF['local_ip']
 
-def _remote_neutron_segments_and_subnets(sdk, ctlplane_id, net_cidrs):
-    """Create's and updates the ctlplane subnet(s) on segments that is
-    not local to the undercloud.
-    """
-    for name in CONF['subnets']:
-        s = CONF['subnets'][name]
-        if name == CONF['local_subnet']:
-            continue
-        phynet = name
-        metadata_nexthop = s['NetworkGateway']
-        host_routes = [{'destination': '169.254.169.254/32',
-                        'nexthop': metadata_nexthop}]
-        host_routes += s['HostRoutes']
-        subnet = _get_subnet(sdk, s['NetworkCidr'], ctlplane_id)
-        segment = _get_segment(sdk, phynet, ctlplane_id)
-        if subnet:
-            _neutron_segment_update(sdk, subnet.segment_id, name)
-            _neutron_subnet_update(
-                sdk, subnet.id, s['NetworkCidr'], s['NetworkGateway'],
-                host_routes, s.get('AllocationPools'), name,
-                CONF['nameservers'])
-        else:
-            if segment:
-                _neutron_segment_update(sdk, segment.id, name)
+            host_routes = [{'destination': '169.254.169.254/32',
+                            'nexthop': metadata_nexthop}]
+            allocation_pool = [{'start': s['DhcpRangeStart'],
+                                'end': s['DhcpRangeEnd']}]
+
+            subnet = _get_subnet(sdk, s['NetworkCidr'], ctlplane_id)
+            segment = _get_segment(sdk, phynet, ctlplane_id)
+
+            if name == CONF['local_subnet']:
+                if ((subnet and not segment) or
+                        (subnet and segment and
+                         subnet.segment_id != segment.id)):
+                    raise RuntimeError(
+                        'The cidr: %s of the local subnet is already used in '
+                        'subnet: %s which is associated with segment_id: %s.' %
+                        (s['NetworkCidr'], subnet.id, subnet.segment_id))
+
+            if subnet:
+                _neutron_segment_update(sdk, subnet.segment_id, name)
+                _neutron_subnet_update(
+                    sdk, subnet.id, s['NetworkCidr'], s['NetworkGateway'],
+                    host_routes, allocation_pool, name, CONF['nameservers'])
             else:
-                segment = _neutron_segment_create(sdk, name, ctlplane_id,
-                                                  phynet)
-            subnet = _neutron_subnet_create(
-                sdk, ctlplane_id, s['NetworkCidr'], s['NetworkGateway'],
-                host_routes, s.get('AllocationPools'), name, segment.id,
-                CONF['nameservers'])
+                if segment:
+                    _neutron_segment_update(sdk, segment.id, name)
+                else:
+                    segment = _neutron_segment_create(sdk, name,
+                                                      ctlplane_id, phynet)
+
+                if CONF['enable_routed_networks']:
+                    subnet = _neutron_subnet_create(
+                        sdk, ctlplane_id, s['NetworkCidr'],
+                        s['NetworkGateway'], host_routes, allocation_pool,
+                        name, segment.id, CONF['nameservers'])
+                else:
+                    subnet = _neutron_subnet_create(
+                        sdk, ctlplane_id, s['NetworkCidr'],
+                        s['NetworkGateway'], host_routes, allocation_pool,
+                        name, None, CONF['nameservers'])
+
             # If the subnet is IPv6 we need to start a router so that router
             # advertisments are sent out for stateless IP addressing to work.
             if netaddr.IPNetwork(s['NetworkCidr']).version == 6:
                 _ensure_neutron_router(sdk, name, subnet.id)
-        net_cidrs.append(s['NetworkCidr'])
 
-    return net_cidrs
 
-if 'true' not in _run_command(['hiera', 'neutron_api_enabled'],
-                              name='hiera').lower():
-    print('WARNING: UndercloudCtlplaneNetworkDeployment : The Neutron API '
-          'is disabled. The ctlplane network cannot be configured.')
-else:
-    sdk = openstack.connect(CONF['cloud_name'])
+
+if _run_command(['hiera', 'neutron_api_enabled'], name='hiera'):
+    sdk = os_client_config.make_sdk(auth_url=AUTH_URL,
+                                    project_name='admin',
+                                    username='admin',
+                                    password=ADMIN_PASSWORD,
+                                    project_domain_name='Default',
+                                    user_domain_name='Default')
 
     network = _ensure_neutron_network(sdk)
-    net_cidrs = []
-    # Always create/update the local_subnet first to ensure it is can have the
-    # subnet associated with a segment prior to creating the remote subnets if
-    # the user enabled routed networks support on undercloud update.
-    net_cidrs = _local_neutron_segments_and_subnets(sdk, network.id, net_cidrs)
-    if CONF['enable_routed_networks']:
-        net_cidrs = _remote_neutron_segments_and_subnets(sdk, network.id,
-                                                         net_cidrs)
-    # Set the cidrs for all ctlplane subnets as tags on the ctlplane network.
-    # These tags are used for the NetCidrMapValue in tripleo-heat-templates.
-    _set_network_tags(sdk, network, net_cidrs)
+    config_neutron_segments_and_subnets(sdk, network.id)

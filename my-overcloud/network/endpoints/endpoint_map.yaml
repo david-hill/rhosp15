@@ -31,6 +31,9 @@ parameters:
       CinderAdmin: {protocol: http, port: '8776', host: IP_ADDRESS}
       CinderInternal: {protocol: http, port: '8776', host: IP_ADDRESS}
       CinderPublic: {protocol: http, port: '8776', host: IP_ADDRESS}
+      CongressAdmin: {protocol: http, port: '1789', host: IP_ADDRESS}
+      CongressInternal: {protocol: http, port: '1789', host: IP_ADDRESS}
+      CongressPublic: {protocol: http, port: '1789', host: IP_ADDRESS}
       DesignateAdmin: {protocol: http, port: '9001', host: IP_ADDRESS}
       DesignateInternal: {protocol: http, port: '9001', host: IP_ADDRESS}
       DesignatePublic: {protocol: http, port: '9001', host: IP_ADDRESS}
@@ -91,7 +94,12 @@ parameters:
       OctaviaPublic: {protocol: http, port: '9876', host: IP_ADDRESS}
       OpenDaylightAdmin: {protocol: http, port: '8081', host: IP_ADDRESS}
       OpenDaylightInternal: {protocol: http, port: '8081', host: IP_ADDRESS}
-      OvnDbInternal: {protocol: tcp, port: '6642', host: IP_ADDRESS}
+      OpenshiftAdmin: {protocol: http, port: '8443', host: IP_ADDRESS}
+      OpenshiftInternal: {protocol: http, port: '8443', host: IP_ADDRESS}
+      OpenshiftPublic: {protocol: http, port: '8443', host: IP_ADDRESS}
+      OpenshiftRouterAdmin: {protocol: http, port: '80', host: IP_ADDRESS}
+      OpenshiftRouterInternal: {protocol: http, port: '80', host: IP_ADDRESS}
+      OpenshiftRouterPublic: {protocol: http, port: '80', host: IP_ADDRESS}
       PankoAdmin: {protocol: http, port: '8977', host: IP_ADDRESS}
       PankoInternal: {protocol: http, port: '8977', host: IP_ADDRESS}
       PankoPublic: {protocol: http, port: '8977', host: IP_ADDRESS}
@@ -644,32 +652,29 @@ outputs:
         protocol:
           get_param: [EndpointMap, CephRgwAdmin, protocol]
         uri:
-          list_join:
-          - ''
-          - - make_url:
-                scheme:
-                  get_param: [EndpointMap, CephRgwAdmin, protocol]
-                host:
-                  str_replace:
-                    template:
-                      get_param: [EndpointMap, CephRgwAdmin, host]
-                    params:
-                      CLOUDNAME:
-                        get_param:
-                        - CloudEndpoints
-                        - get_param: [ServiceNetMap, CephRgwNetwork]
-                      IP_ADDRESS:
-                        get_param:
-                        - NetIpMap
-                        - str_replace:
-                            params:
-                              NETWORK:
-                                get_param: [ServiceNetMap, CephRgwNetwork]
-                            template: NETWORK_uri
-                port:
-                  get_param: [EndpointMap, CephRgwAdmin, port]
-                path: /swift/v1/AUTH_
-            - '%(project_id)s'
+          make_url:
+            scheme:
+              get_param: [EndpointMap, CephRgwAdmin, protocol]
+            host:
+              str_replace:
+                template:
+                  get_param: [EndpointMap, CephRgwAdmin, host]
+                params:
+                  CLOUDNAME:
+                    get_param:
+                    - CloudEndpoints
+                    - get_param: [ServiceNetMap, CephRgwNetwork]
+                  IP_ADDRESS:
+                    get_param:
+                    - NetIpMap
+                    - str_replace:
+                        params:
+                          NETWORK:
+                            get_param: [ServiceNetMap, CephRgwNetwork]
+                        template: NETWORK_uri
+            port:
+              get_param: [EndpointMap, CephRgwAdmin, port]
+            path: /swift/v1
         uri_no_suffix:
           make_url:
             scheme:
@@ -729,32 +734,29 @@ outputs:
         protocol:
           get_param: [EndpointMap, CephRgwInternal, protocol]
         uri:
-          list_join:
-          - ''
-          - - make_url:
-                scheme:
-                  get_param: [EndpointMap, CephRgwInternal, protocol]
-                host:
-                  str_replace:
-                    template:
-                      get_param: [EndpointMap, CephRgwInternal, host]
-                    params:
-                      CLOUDNAME:
-                        get_param:
-                        - CloudEndpoints
-                        - get_param: [ServiceNetMap, CephRgwNetwork]
-                      IP_ADDRESS:
-                        get_param:
-                        - NetIpMap
-                        - str_replace:
-                            params:
-                              NETWORK:
-                                get_param: [ServiceNetMap, CephRgwNetwork]
-                            template: NETWORK_uri
-                port:
-                  get_param: [EndpointMap, CephRgwInternal, port]
-                path: /swift/v1/AUTH_
-            - '%(project_id)s'
+          make_url:
+            scheme:
+              get_param: [EndpointMap, CephRgwInternal, protocol]
+            host:
+              str_replace:
+                template:
+                  get_param: [EndpointMap, CephRgwInternal, host]
+                params:
+                  CLOUDNAME:
+                    get_param:
+                    - CloudEndpoints
+                    - get_param: [ServiceNetMap, CephRgwNetwork]
+                  IP_ADDRESS:
+                    get_param:
+                    - NetIpMap
+                    - str_replace:
+                        params:
+                          NETWORK:
+                            get_param: [ServiceNetMap, CephRgwNetwork]
+                        template: NETWORK_uri
+            port:
+              get_param: [EndpointMap, CephRgwInternal, port]
+            path: /swift/v1
         uri_no_suffix:
           make_url:
             scheme:
@@ -814,32 +816,29 @@ outputs:
         protocol:
           get_param: [EndpointMap, CephRgwPublic, protocol]
         uri:
-          list_join:
-          - ''
-          - - make_url:
-                scheme:
-                  get_param: [EndpointMap, CephRgwPublic, protocol]
-                host:
-                  str_replace:
-                    template:
-                      get_param: [EndpointMap, CephRgwPublic, host]
-                    params:
-                      CLOUDNAME:
-                        get_param:
-                        - CloudEndpoints
-                        - get_param: [ServiceNetMap, PublicNetwork]
-                      IP_ADDRESS:
-                        get_param:
-                        - NetIpMap
-                        - str_replace:
-                            params:
-                              NETWORK:
-                                get_param: [ServiceNetMap, PublicNetwork]
-                            template: NETWORK_uri
-                port:
-                  get_param: [EndpointMap, CephRgwPublic, port]
-                path: /swift/v1/AUTH_
-            - '%(project_id)s'
+          make_url:
+            scheme:
+              get_param: [EndpointMap, CephRgwPublic, protocol]
+            host:
+              str_replace:
+                template:
+                  get_param: [EndpointMap, CephRgwPublic, host]
+                params:
+                  CLOUDNAME:
+                    get_param:
+                    - CloudEndpoints
+                    - get_param: [ServiceNetMap, PublicNetwork]
+                  IP_ADDRESS:
+                    get_param:
+                    - NetIpMap
+                    - str_replace:
+                        params:
+                          NETWORK:
+                            get_param: [ServiceNetMap, PublicNetwork]
+                        template: NETWORK_uri
+            port:
+              get_param: [EndpointMap, CephRgwPublic, port]
+            path: /swift/v1
         uri_no_suffix:
           make_url:
             scheme:
@@ -1628,6 +1627,249 @@ outputs:
                         template: NETWORK_uri
             port:
               get_param: [EndpointMap, CinderPublic, port]
+      CongressAdmin:
+        host:
+          str_replace:
+            template:
+              get_param: [EndpointMap, CongressAdmin, host]
+            params:
+              CLOUDNAME:
+                get_param:
+                - CloudEndpoints
+                - get_param: [ServiceNetMap, CongressApiNetwork]
+              IP_ADDRESS:
+                get_param:
+                - NetIpMap
+                - str_replace:
+                    params:
+                      NETWORK:
+                        get_param: [ServiceNetMap, CongressApiNetwork]
+                    template: NETWORK_uri
+        host_nobrackets:
+          str_replace:
+            template:
+              get_param: [EndpointMap, CongressAdmin, host]
+            params:
+              CLOUDNAME:
+                get_param:
+                - CloudEndpoints
+                - get_param: [ServiceNetMap, CongressApiNetwork]
+              IP_ADDRESS:
+                get_param:
+                - NetIpMap
+                - get_param: [ServiceNetMap, CongressApiNetwork]
+        port:
+          get_param: [EndpointMap, CongressAdmin, port]
+        protocol:
+          get_param: [EndpointMap, CongressAdmin, protocol]
+        uri:
+          make_url:
+            scheme:
+              get_param: [EndpointMap, CongressAdmin, protocol]
+            host:
+              str_replace:
+                template:
+                  get_param: [EndpointMap, CongressAdmin, host]
+                params:
+                  CLOUDNAME:
+                    get_param:
+                    - CloudEndpoints
+                    - get_param: [ServiceNetMap, CongressApiNetwork]
+                  IP_ADDRESS:
+                    get_param:
+                    - NetIpMap
+                    - str_replace:
+                        params:
+                          NETWORK:
+                            get_param: [ServiceNetMap, CongressApiNetwork]
+                        template: NETWORK_uri
+            port:
+              get_param: [EndpointMap, CongressAdmin, port]
+        uri_no_suffix:
+          make_url:
+            scheme:
+              get_param: [EndpointMap, CongressAdmin, protocol]
+            host:
+              str_replace:
+                template:
+                  get_param: [EndpointMap, CongressAdmin, host]
+                params:
+                  CLOUDNAME:
+                    get_param:
+                    - CloudEndpoints
+                    - get_param: [ServiceNetMap, CongressApiNetwork]
+                  IP_ADDRESS:
+                    get_param:
+                    - NetIpMap
+                    - str_replace:
+                        params:
+                          NETWORK:
+                            get_param: [ServiceNetMap, CongressApiNetwork]
+                        template: NETWORK_uri
+            port:
+              get_param: [EndpointMap, CongressAdmin, port]
+      CongressInternal:
+        host:
+          str_replace:
+            template:
+              get_param: [EndpointMap, CongressInternal, host]
+            params:
+              CLOUDNAME:
+                get_param:
+                - CloudEndpoints
+                - get_param: [ServiceNetMap, CongressApiNetwork]
+              IP_ADDRESS:
+                get_param:
+                - NetIpMap
+                - str_replace:
+                    params:
+                      NETWORK:
+                        get_param: [ServiceNetMap, CongressApiNetwork]
+                    template: NETWORK_uri
+        host_nobrackets:
+          str_replace:
+            template:
+              get_param: [EndpointMap, CongressInternal, host]
+            params:
+              CLOUDNAME:
+                get_param:
+                - CloudEndpoints
+                - get_param: [ServiceNetMap, CongressApiNetwork]
+              IP_ADDRESS:
+                get_param:
+                - NetIpMap
+                - get_param: [ServiceNetMap, CongressApiNetwork]
+        port:
+          get_param: [EndpointMap, CongressInternal, port]
+        protocol:
+          get_param: [EndpointMap, CongressInternal, protocol]
+        uri:
+          make_url:
+            scheme:
+              get_param: [EndpointMap, CongressInternal, protocol]
+            host:
+              str_replace:
+                template:
+                  get_param: [EndpointMap, CongressInternal, host]
+                params:
+                  CLOUDNAME:
+                    get_param:
+                    - CloudEndpoints
+                    - get_param: [ServiceNetMap, CongressApiNetwork]
+                  IP_ADDRESS:
+                    get_param:
+                    - NetIpMap
+                    - str_replace:
+                        params:
+                          NETWORK:
+                            get_param: [ServiceNetMap, CongressApiNetwork]
+                        template: NETWORK_uri
+            port:
+              get_param: [EndpointMap, CongressInternal, port]
+        uri_no_suffix:
+          make_url:
+            scheme:
+              get_param: [EndpointMap, CongressInternal, protocol]
+            host:
+              str_replace:
+                template:
+                  get_param: [EndpointMap, CongressInternal, host]
+                params:
+                  CLOUDNAME:
+                    get_param:
+                    - CloudEndpoints
+                    - get_param: [ServiceNetMap, CongressApiNetwork]
+                  IP_ADDRESS:
+                    get_param:
+                    - NetIpMap
+                    - str_replace:
+                        params:
+                          NETWORK:
+                            get_param: [ServiceNetMap, CongressApiNetwork]
+                        template: NETWORK_uri
+            port:
+              get_param: [EndpointMap, CongressInternal, port]
+      CongressPublic:
+        host:
+          str_replace:
+            template:
+              get_param: [EndpointMap, CongressPublic, host]
+            params:
+              CLOUDNAME:
+                get_param:
+                - CloudEndpoints
+                - get_param: [ServiceNetMap, PublicNetwork]
+              IP_ADDRESS:
+                get_param:
+                - NetIpMap
+                - str_replace:
+                    params:
+                      NETWORK:
+                        get_param: [ServiceNetMap, PublicNetwork]
+                    template: NETWORK_uri
+        host_nobrackets:
+          str_replace:
+            template:
+              get_param: [EndpointMap, CongressPublic, host]
+            params:
+              CLOUDNAME:
+                get_param:
+                - CloudEndpoints
+                - get_param: [ServiceNetMap, PublicNetwork]
+              IP_ADDRESS:
+                get_param:
+                - NetIpMap
+                - get_param: [ServiceNetMap, PublicNetwork]
+        port:
+          get_param: [EndpointMap, CongressPublic, port]
+        protocol:
+          get_param: [EndpointMap, CongressPublic, protocol]
+        uri:
+          make_url:
+            scheme:
+              get_param: [EndpointMap, CongressPublic, protocol]
+            host:
+              str_replace:
+                template:
+                  get_param: [EndpointMap, CongressPublic, host]
+                params:
+                  CLOUDNAME:
+                    get_param:
+                    - CloudEndpoints
+                    - get_param: [ServiceNetMap, PublicNetwork]
+                  IP_ADDRESS:
+                    get_param:
+                    - NetIpMap
+                    - str_replace:
+                        params:
+                          NETWORK:
+                            get_param: [ServiceNetMap, PublicNetwork]
+                        template: NETWORK_uri
+            port:
+              get_param: [EndpointMap, CongressPublic, port]
+        uri_no_suffix:
+          make_url:
+            scheme:
+              get_param: [EndpointMap, CongressPublic, protocol]
+            host:
+              str_replace:
+                template:
+                  get_param: [EndpointMap, CongressPublic, host]
+                params:
+                  CLOUDNAME:
+                    get_param:
+                    - CloudEndpoints
+                    - get_param: [ServiceNetMap, PublicNetwork]
+                  IP_ADDRESS:
+                    get_param:
+                    - NetIpMap
+                    - str_replace:
+                        params:
+                          NETWORK:
+                            get_param: [ServiceNetMap, PublicNetwork]
+                        template: NETWORK_uri
+            port:
+              get_param: [EndpointMap, CongressPublic, port]
       DesignateAdmin:
         host:
           str_replace:
@@ -7044,87 +7286,492 @@ outputs:
                         template: NETWORK_uri
             port:
               get_param: [EndpointMap, OpenDaylightInternal, port]
-      OvnDbInternal:
+      OpenshiftAdmin:
         host:
           str_replace:
             template:
-              get_param: [EndpointMap, OvnDbInternal, host]
+              get_param: [EndpointMap, OpenshiftAdmin, host]
             params:
               CLOUDNAME:
                 get_param:
                 - CloudEndpoints
-                - get_param: [ServiceNetMap, OvnDbsNetwork]
+                - get_param: [ServiceNetMap, OpenshiftMasterNetwork]
               IP_ADDRESS:
                 get_param:
                 - NetIpMap
                 - str_replace:
                     params:
                       NETWORK:
-                        get_param: [ServiceNetMap, OvnDbsNetwork]
+                        get_param: [ServiceNetMap, OpenshiftMasterNetwork]
                     template: NETWORK_uri
         host_nobrackets:
           str_replace:
             template:
-              get_param: [EndpointMap, OvnDbInternal, host]
+              get_param: [EndpointMap, OpenshiftAdmin, host]
             params:
               CLOUDNAME:
                 get_param:
                 - CloudEndpoints
-                - get_param: [ServiceNetMap, OvnDbsNetwork]
+                - get_param: [ServiceNetMap, OpenshiftMasterNetwork]
               IP_ADDRESS:
                 get_param:
                 - NetIpMap
-                - get_param: [ServiceNetMap, OvnDbsNetwork]
+                - get_param: [ServiceNetMap, OpenshiftMasterNetwork]
         port:
-          get_param: [EndpointMap, OvnDbInternal, port]
+          get_param: [EndpointMap, OpenshiftAdmin, port]
         protocol:
-          get_param: [EndpointMap, OvnDbInternal, protocol]
+          get_param: [EndpointMap, OpenshiftAdmin, protocol]
         uri:
           make_url:
             scheme:
-              get_param: [EndpointMap, OvnDbInternal, protocol]
+              get_param: [EndpointMap, OpenshiftAdmin, protocol]
             host:
               str_replace:
                 template:
-                  get_param: [EndpointMap, OvnDbInternal, host]
+                  get_param: [EndpointMap, OpenshiftAdmin, host]
                 params:
                   CLOUDNAME:
                     get_param:
                     - CloudEndpoints
-                    - get_param: [ServiceNetMap, OvnDbsNetwork]
+                    - get_param: [ServiceNetMap, OpenshiftMasterNetwork]
                   IP_ADDRESS:
                     get_param:
                     - NetIpMap
                     - str_replace:
                         params:
                           NETWORK:
-                            get_param: [ServiceNetMap, OvnDbsNetwork]
+                            get_param: [ServiceNetMap, OpenshiftMasterNetwork]
                         template: NETWORK_uri
             port:
-              get_param: [EndpointMap, OvnDbInternal, port]
+              get_param: [EndpointMap, OpenshiftAdmin, port]
         uri_no_suffix:
           make_url:
             scheme:
-              get_param: [EndpointMap, OvnDbInternal, protocol]
+              get_param: [EndpointMap, OpenshiftAdmin, protocol]
             host:
               str_replace:
                 template:
-                  get_param: [EndpointMap, OvnDbInternal, host]
+                  get_param: [EndpointMap, OpenshiftAdmin, host]
                 params:
                   CLOUDNAME:
                     get_param:
                     - CloudEndpoints
-                    - get_param: [ServiceNetMap, OvnDbsNetwork]
+                    - get_param: [ServiceNetMap, OpenshiftMasterNetwork]
                   IP_ADDRESS:
                     get_param:
                     - NetIpMap
                     - str_replace:
                         params:
                           NETWORK:
-                            get_param: [ServiceNetMap, OvnDbsNetwork]
+                            get_param: [ServiceNetMap, OpenshiftMasterNetwork]
                         template: NETWORK_uri
             port:
-              get_param: [EndpointMap, OvnDbInternal, port]
+              get_param: [EndpointMap, OpenshiftAdmin, port]
+      OpenshiftInternal:
+        host:
+          str_replace:
+            template:
+              get_param: [EndpointMap, OpenshiftInternal, host]
+            params:
+              CLOUDNAME:
+                get_param:
+                - CloudEndpoints
+                - get_param: [ServiceNetMap, OpenshiftMasterNetwork]
+              IP_ADDRESS:
+                get_param:
+                - NetIpMap
+                - str_replace:
+                    params:
+                      NETWORK:
+                        get_param: [ServiceNetMap, OpenshiftMasterNetwork]
+                    template: NETWORK_uri
+        host_nobrackets:
+          str_replace:
+            template:
+              get_param: [EndpointMap, OpenshiftInternal, host]
+            params:
+              CLOUDNAME:
+                get_param:
+                - CloudEndpoints
+                - get_param: [ServiceNetMap, OpenshiftMasterNetwork]
+              IP_ADDRESS:
+                get_param:
+                - NetIpMap
+                - get_param: [ServiceNetMap, OpenshiftMasterNetwork]
+        port:
+          get_param: [EndpointMap, OpenshiftInternal, port]
+        protocol:
+          get_param: [EndpointMap, OpenshiftInternal, protocol]
+        uri:
+          make_url:
+            scheme:
+              get_param: [EndpointMap, OpenshiftInternal, protocol]
+            host:
+              str_replace:
+                template:
+                  get_param: [EndpointMap, OpenshiftInternal, host]
+                params:
+                  CLOUDNAME:
+                    get_param:
+                    - CloudEndpoints
+                    - get_param: [ServiceNetMap, OpenshiftMasterNetwork]
+                  IP_ADDRESS:
+                    get_param:
+                    - NetIpMap
+                    - str_replace:
+                        params:
+                          NETWORK:
+                            get_param: [ServiceNetMap, OpenshiftMasterNetwork]
+                        template: NETWORK_uri
+            port:
+              get_param: [EndpointMap, OpenshiftInternal, port]
+        uri_no_suffix:
+          make_url:
+            scheme:
+              get_param: [EndpointMap, OpenshiftInternal, protocol]
+            host:
+              str_replace:
+                template:
+                  get_param: [EndpointMap, OpenshiftInternal, host]
+                params:
+                  CLOUDNAME:
+                    get_param:
+                    - CloudEndpoints
+                    - get_param: [ServiceNetMap, OpenshiftMasterNetwork]
+                  IP_ADDRESS:
+                    get_param:
+                    - NetIpMap
+                    - str_replace:
+                        params:
+                          NETWORK:
+                            get_param: [ServiceNetMap, OpenshiftMasterNetwork]
+                        template: NETWORK_uri
+            port:
+              get_param: [EndpointMap, OpenshiftInternal, port]
+      OpenshiftPublic:
+        host:
+          str_replace:
+            template:
+              get_param: [EndpointMap, OpenshiftPublic, host]
+            params:
+              CLOUDNAME:
+                get_param:
+                - CloudEndpoints
+                - get_param: [ServiceNetMap, PublicNetwork]
+              IP_ADDRESS:
+                get_param:
+                - NetIpMap
+                - str_replace:
+                    params:
+                      NETWORK:
+                        get_param: [ServiceNetMap, PublicNetwork]
+                    template: NETWORK_uri
+        host_nobrackets:
+          str_replace:
+            template:
+              get_param: [EndpointMap, OpenshiftPublic, host]
+            params:
+              CLOUDNAME:
+                get_param:
+                - CloudEndpoints
+                - get_param: [ServiceNetMap, PublicNetwork]
+              IP_ADDRESS:
+                get_param:
+                - NetIpMap
+                - get_param: [ServiceNetMap, PublicNetwork]
+        port:
+          get_param: [EndpointMap, OpenshiftPublic, port]
+        protocol:
+          get_param: [EndpointMap, OpenshiftPublic, protocol]
+        uri:
+          make_url:
+            scheme:
+              get_param: [EndpointMap, OpenshiftPublic, protocol]
+            host:
+              str_replace:
+                template:
+                  get_param: [EndpointMap, OpenshiftPublic, host]
+                params:
+                  CLOUDNAME:
+                    get_param:
+                    - CloudEndpoints
+                    - get_param: [ServiceNetMap, PublicNetwork]
+                  IP_ADDRESS:
+                    get_param:
+                    - NetIpMap
+                    - str_replace:
+                        params:
+                          NETWORK:
+                            get_param: [ServiceNetMap, PublicNetwork]
+                        template: NETWORK_uri
+            port:
+              get_param: [EndpointMap, OpenshiftPublic, port]
+        uri_no_suffix:
+          make_url:
+            scheme:
+              get_param: [EndpointMap, OpenshiftPublic, protocol]
+            host:
+              str_replace:
+                template:
+                  get_param: [EndpointMap, OpenshiftPublic, host]
+                params:
+                  CLOUDNAME:
+                    get_param:
+                    - CloudEndpoints
+                    - get_param: [ServiceNetMap, PublicNetwork]
+                  IP_ADDRESS:
+                    get_param:
+                    - NetIpMap
+                    - str_replace:
+                        params:
+                          NETWORK:
+                            get_param: [ServiceNetMap, PublicNetwork]
+                        template: NETWORK_uri
+            port:
+              get_param: [EndpointMap, OpenshiftPublic, port]
+      OpenshiftRouterAdmin:
+        host:
+          str_replace:
+            template:
+              get_param: [EndpointMap, OpenshiftRouterAdmin, host]
+            params:
+              CLOUDNAME:
+                get_param:
+                - CloudEndpoints
+                - get_param: [ServiceNetMap, OpenshiftInfraNetwork]
+              IP_ADDRESS:
+                get_param:
+                - NetIpMap
+                - str_replace:
+                    params:
+                      NETWORK:
+                        get_param: [ServiceNetMap, OpenshiftInfraNetwork]
+                    template: NETWORK_uri
+        host_nobrackets:
+          str_replace:
+            template:
+              get_param: [EndpointMap, OpenshiftRouterAdmin, host]
+            params:
+              CLOUDNAME:
+                get_param:
+                - CloudEndpoints
+                - get_param: [ServiceNetMap, OpenshiftInfraNetwork]
+              IP_ADDRESS:
+                get_param:
+                - NetIpMap
+                - get_param: [ServiceNetMap, OpenshiftInfraNetwork]
+        port:
+          get_param: [EndpointMap, OpenshiftRouterAdmin, port]
+        protocol:
+          get_param: [EndpointMap, OpenshiftRouterAdmin, protocol]
+        uri:
+          make_url:
+            scheme:
+              get_param: [EndpointMap, OpenshiftRouterAdmin, protocol]
+            host:
+              str_replace:
+                template:
+                  get_param: [EndpointMap, OpenshiftRouterAdmin, host]
+                params:
+                  CLOUDNAME:
+                    get_param:
+                    - CloudEndpoints
+                    - get_param: [ServiceNetMap, OpenshiftInfraNetwork]
+                  IP_ADDRESS:
+                    get_param:
+                    - NetIpMap
+                    - str_replace:
+                        params:
+                          NETWORK:
+                            get_param: [ServiceNetMap, OpenshiftInfraNetwork]
+                        template: NETWORK_uri
+            port:
+              get_param: [EndpointMap, OpenshiftRouterAdmin, port]
+        uri_no_suffix:
+          make_url:
+            scheme:
+              get_param: [EndpointMap, OpenshiftRouterAdmin, protocol]
+            host:
+              str_replace:
+                template:
+                  get_param: [EndpointMap, OpenshiftRouterAdmin, host]
+                params:
+                  CLOUDNAME:
+                    get_param:
+                    - CloudEndpoints
+                    - get_param: [ServiceNetMap, OpenshiftInfraNetwork]
+                  IP_ADDRESS:
+                    get_param:
+                    - NetIpMap
+                    - str_replace:
+                        params:
+                          NETWORK:
+                            get_param: [ServiceNetMap, OpenshiftInfraNetwork]
+                        template: NETWORK_uri
+            port:
+              get_param: [EndpointMap, OpenshiftRouterAdmin, port]
+      OpenshiftRouterInternal:
+        host:
+          str_replace:
+            template:
+              get_param: [EndpointMap, OpenshiftRouterInternal, host]
+            params:
+              CLOUDNAME:
+                get_param:
+                - CloudEndpoints
+                - get_param: [ServiceNetMap, OpenshiftInfraNetwork]
+              IP_ADDRESS:
+                get_param:
+                - NetIpMap
+                - str_replace:
+                    params:
+                      NETWORK:
+                        get_param: [ServiceNetMap, OpenshiftInfraNetwork]
+                    template: NETWORK_uri
+        host_nobrackets:
+          str_replace:
+            template:
+              get_param: [EndpointMap, OpenshiftRouterInternal, host]
+            params:
+              CLOUDNAME:
+                get_param:
+                - CloudEndpoints
+                - get_param: [ServiceNetMap, OpenshiftInfraNetwork]
+              IP_ADDRESS:
+                get_param:
+                - NetIpMap
+                - get_param: [ServiceNetMap, OpenshiftInfraNetwork]
+        port:
+          get_param: [EndpointMap, OpenshiftRouterInternal, port]
+        protocol:
+          get_param: [EndpointMap, OpenshiftRouterInternal, protocol]
+        uri:
+          make_url:
+            scheme:
+              get_param: [EndpointMap, OpenshiftRouterInternal, protocol]
+            host:
+              str_replace:
+                template:
+                  get_param: [EndpointMap, OpenshiftRouterInternal, host]
+                params:
+                  CLOUDNAME:
+                    get_param:
+                    - CloudEndpoints
+                    - get_param: [ServiceNetMap, OpenshiftInfraNetwork]
+                  IP_ADDRESS:
+                    get_param:
+                    - NetIpMap
+                    - str_replace:
+                        params:
+                          NETWORK:
+                            get_param: [ServiceNetMap, OpenshiftInfraNetwork]
+                        template: NETWORK_uri
+            port:
+              get_param: [EndpointMap, OpenshiftRouterInternal, port]
+        uri_no_suffix:
+          make_url:
+            scheme:
+              get_param: [EndpointMap, OpenshiftRouterInternal, protocol]
+            host:
+              str_replace:
+                template:
+                  get_param: [EndpointMap, OpenshiftRouterInternal, host]
+                params:
+                  CLOUDNAME:
+                    get_param:
+                    - CloudEndpoints
+                    - get_param: [ServiceNetMap, OpenshiftInfraNetwork]
+                  IP_ADDRESS:
+                    get_param:
+                    - NetIpMap
+                    - str_replace:
+                        params:
+                          NETWORK:
+                            get_param: [ServiceNetMap, OpenshiftInfraNetwork]
+                        template: NETWORK_uri
+            port:
+              get_param: [EndpointMap, OpenshiftRouterInternal, port]
+      OpenshiftRouterPublic:
+        host:
+          str_replace:
+            template:
+              get_param: [EndpointMap, OpenshiftRouterPublic, host]
+            params:
+              CLOUDNAME:
+                get_param:
+                - CloudEndpoints
+                - get_param: [ServiceNetMap, PublicNetwork]
+              IP_ADDRESS:
+                get_param:
+                - NetIpMap
+                - str_replace:
+                    params:
+                      NETWORK:
+                        get_param: [ServiceNetMap, PublicNetwork]
+                    template: NETWORK_uri
+        host_nobrackets:
+          str_replace:
+            template:
+              get_param: [EndpointMap, OpenshiftRouterPublic, host]
+            params:
+              CLOUDNAME:
+                get_param:
+                - CloudEndpoints
+                - get_param: [ServiceNetMap, PublicNetwork]
+              IP_ADDRESS:
+                get_param:
+                - NetIpMap
+                - get_param: [ServiceNetMap, PublicNetwork]
+        port:
+          get_param: [EndpointMap, OpenshiftRouterPublic, port]
+        protocol:
+          get_param: [EndpointMap, OpenshiftRouterPublic, protocol]
+        uri:
+          make_url:
+            scheme:
+              get_param: [EndpointMap, OpenshiftRouterPublic, protocol]
+            host:
+              str_replace:
+                template:
+                  get_param: [EndpointMap, OpenshiftRouterPublic, host]
+                params:
+                  CLOUDNAME:
+                    get_param:
+                    - CloudEndpoints
+                    - get_param: [ServiceNetMap, PublicNetwork]
+                  IP_ADDRESS:
+                    get_param:
+                    - NetIpMap
+                    - str_replace:
+                        params:
+                          NETWORK:
+                            get_param: [ServiceNetMap, PublicNetwork]
+                        template: NETWORK_uri
+            port:
+              get_param: [EndpointMap, OpenshiftRouterPublic, port]
+        uri_no_suffix:
+          make_url:
+            scheme:
+              get_param: [EndpointMap, OpenshiftRouterPublic, protocol]
+            host:
+              str_replace:
+                template:
+                  get_param: [EndpointMap, OpenshiftRouterPublic, host]
+                params:
+                  CLOUDNAME:
+                    get_param:
+                    - CloudEndpoints
+                    - get_param: [ServiceNetMap, PublicNetwork]
+                  IP_ADDRESS:
+                    get_param:
+                    - NetIpMap
+                    - str_replace:
+                        params:
+                          NETWORK:
+                            get_param: [ServiceNetMap, PublicNetwork]
+                        template: NETWORK_uri
+            port:
+              get_param: [EndpointMap, OpenshiftRouterPublic, port]
       PankoAdmin:
         host:
           str_replace:
@@ -7404,28 +8051,32 @@ outputs:
         protocol:
           get_param: [EndpointMap, SaharaAdmin, protocol]
         uri:
-          make_url:
-            scheme:
-              get_param: [EndpointMap, SaharaAdmin, protocol]
-            host:
-              str_replace:
-                template:
-                  get_param: [EndpointMap, SaharaAdmin, host]
-                params:
-                  CLOUDNAME:
-                    get_param:
-                    - CloudEndpoints
-                    - get_param: [ServiceNetMap, SaharaApiNetwork]
-                  IP_ADDRESS:
-                    get_param:
-                    - NetIpMap
-                    - str_replace:
-                        params:
-                          NETWORK:
-                            get_param: [ServiceNetMap, SaharaApiNetwork]
-                        template: NETWORK_uri
-            port:
-              get_param: [EndpointMap, SaharaAdmin, port]
+          list_join:
+          - ''
+          - - make_url:
+                scheme:
+                  get_param: [EndpointMap, SaharaAdmin, protocol]
+                host:
+                  str_replace:
+                    template:
+                      get_param: [EndpointMap, SaharaAdmin, host]
+                    params:
+                      CLOUDNAME:
+                        get_param:
+                        - CloudEndpoints
+                        - get_param: [ServiceNetMap, SaharaApiNetwork]
+                      IP_ADDRESS:
+                        get_param:
+                        - NetIpMap
+                        - str_replace:
+                            params:
+                              NETWORK:
+                                get_param: [ServiceNetMap, SaharaApiNetwork]
+                            template: NETWORK_uri
+                port:
+                  get_param: [EndpointMap, SaharaAdmin, port]
+                path: /v1.1/
+            - '%(tenant_id)s'
         uri_no_suffix:
           make_url:
             scheme:
@@ -7485,28 +8136,32 @@ outputs:
         protocol:
           get_param: [EndpointMap, SaharaInternal, protocol]
         uri:
-          make_url:
-            scheme:
-              get_param: [EndpointMap, SaharaInternal, protocol]
-            host:
-              str_replace:
-                template:
-                  get_param: [EndpointMap, SaharaInternal, host]
-                params:
-                  CLOUDNAME:
-                    get_param:
-                    - CloudEndpoints
-                    - get_param: [ServiceNetMap, SaharaApiNetwork]
-                  IP_ADDRESS:
-                    get_param:
-                    - NetIpMap
-                    - str_replace:
-                        params:
-                          NETWORK:
-                            get_param: [ServiceNetMap, SaharaApiNetwork]
-                        template: NETWORK_uri
-            port:
-              get_param: [EndpointMap, SaharaInternal, port]
+          list_join:
+          - ''
+          - - make_url:
+                scheme:
+                  get_param: [EndpointMap, SaharaInternal, protocol]
+                host:
+                  str_replace:
+                    template:
+                      get_param: [EndpointMap, SaharaInternal, host]
+                    params:
+                      CLOUDNAME:
+                        get_param:
+                        - CloudEndpoints
+                        - get_param: [ServiceNetMap, SaharaApiNetwork]
+                      IP_ADDRESS:
+                        get_param:
+                        - NetIpMap
+                        - str_replace:
+                            params:
+                              NETWORK:
+                                get_param: [ServiceNetMap, SaharaApiNetwork]
+                            template: NETWORK_uri
+                port:
+                  get_param: [EndpointMap, SaharaInternal, port]
+                path: /v1.1/
+            - '%(tenant_id)s'
         uri_no_suffix:
           make_url:
             scheme:
@@ -7566,28 +8221,32 @@ outputs:
         protocol:
           get_param: [EndpointMap, SaharaPublic, protocol]
         uri:
-          make_url:
-            scheme:
-              get_param: [EndpointMap, SaharaPublic, protocol]
-            host:
-              str_replace:
-                template:
-                  get_param: [EndpointMap, SaharaPublic, host]
-                params:
-                  CLOUDNAME:
-                    get_param:
-                    - CloudEndpoints
-                    - get_param: [ServiceNetMap, PublicNetwork]
-                  IP_ADDRESS:
-                    get_param:
-                    - NetIpMap
-                    - str_replace:
-                        params:
-                          NETWORK:
-                            get_param: [ServiceNetMap, PublicNetwork]
-                        template: NETWORK_uri
-            port:
-              get_param: [EndpointMap, SaharaPublic, port]
+          list_join:
+          - ''
+          - - make_url:
+                scheme:
+                  get_param: [EndpointMap, SaharaPublic, protocol]
+                host:
+                  str_replace:
+                    template:
+                      get_param: [EndpointMap, SaharaPublic, host]
+                    params:
+                      CLOUDNAME:
+                        get_param:
+                        - CloudEndpoints
+                        - get_param: [ServiceNetMap, PublicNetwork]
+                      IP_ADDRESS:
+                        get_param:
+                        - NetIpMap
+                        - str_replace:
+                            params:
+                              NETWORK:
+                                get_param: [ServiceNetMap, PublicNetwork]
+                            template: NETWORK_uri
+                port:
+                  get_param: [EndpointMap, SaharaPublic, port]
+                path: /v1.1/
+            - '%(tenant_id)s'
         uri_no_suffix:
           make_url:
             scheme:

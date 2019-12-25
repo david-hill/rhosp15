@@ -45,9 +45,7 @@ parameters:
 conditions:
   fixed_ip_not_set:
     equals:
-    - yaql:
-        expression: $.data.where($.get('ip_address'))
-        data: {get_param: FixedIPs}
+    - get_param: FixedIPs
     - []
 
 resources:

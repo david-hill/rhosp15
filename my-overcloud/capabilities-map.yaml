@@ -299,11 +299,6 @@ topics:
             description: Enables Cisco VTS ML2 Plugin
             requires:
               - overcloud-resource-registry-puppet.yaml
-          - file: environments/neutron-ml2-mlnx-sdn.yaml
-            title: Mellanox SDN ML2 Plugin
-            description: Enables Mellanox SDN ML2 Plugin
-            requires:
-              - overcloud-resource-registry-puppet.yaml
 
   - title: Storage
     description:
@@ -427,7 +422,7 @@ topics:
               which stores data in the Ceph cluster.
             requires:
               - environments/ceph-ansible/ceph-ansible.yaml
-          - file: environments/manila-cephfsnative-config.yaml
+          - file: environments/manila-cephfsnative-config-docker.yaml
             title: Manila with CephFS
             description: >
               Deploys Manila and configures it with the CephFS driver. This requires the deployment of
@@ -564,6 +559,11 @@ topics:
         environments:
           - file: environments/login-defs.yaml
             title: login.defs Values
+      - title: Advanced Intrusion Detection Environment
+        description: Enable AIDE - Advanced Intrusion Detection Environment
+        environments:
+          - file: environments/aide.yaml
+            title: AIDE Values
 
   - title: Additional Services
     description:
@@ -576,7 +576,7 @@ topics:
             description: Deploy Sahara service
             requires:
               - overcloud-resource-registry-puppet.yaml
-          - file: environments/services/ironic-overcloud.yaml
+          - file: environments/services/ironic.yaml
             title: Ironic
             description: Deploy Ironic service
             requires:
@@ -646,6 +646,17 @@ topics:
         environments:
           - file: environments/config-debug.yaml
             title: Config Debug
+            description:
+            requires:
+              - overcloud-resource-registry-puppet.yaml
+      - title: Disable journal in MongoDb
+        description: >
+          Since, when journaling is enabled, MongoDb will create big journal
+          file it can take time. In a CI environment for example journaling is
+          not necessary.
+        environments:
+          - file: environments/mongodb-nojournal.yaml
+            title: Disable journal in MongoDb
             description:
             requires:
               - overcloud-resource-registry-puppet.yaml

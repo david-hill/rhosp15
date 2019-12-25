@@ -1,10 +1,10 @@
 resource_registry:
   OS::TripleO::Controller::Net::SoftwareConfig: ../common/net-config-multinode.yaml
   OS::TripleO::Compute::Net::SoftwareConfig: ../common/net-config-multinode.yaml
-  OS::TripleO::Services::NovaIronic: ../deployment/nova/nova-ironic-container-puppet.yaml
-  OS::TripleO::Services::IronicApi: ../deployment/ironic/ironic-api-container-puppet.yaml
-  OS::TripleO::Services::IronicConductor: ../deployment/ironic/ironic-conductor-container-puppet.yaml
-  OS::TripleO::Services::IronicPxe: ../deployment/ironic/ironic-pxe-container-puppet.yaml
+  OS::TripleO::Services::NovaIronic: ../docker/services/nova-ironic.yaml
+  OS::TripleO::Services::IronicApi: ../docker/services/ironic-api.yaml
+  OS::TripleO::Services::IronicConductor: ../docker/services/ironic-conductor.yaml
+  OS::TripleO::Services::IronicPxe: ../docker/services/ironic-pxe.yaml
 
 parameter_defaults:
   ControllerServices:
@@ -19,11 +19,12 @@ parameter_defaults:
     - OS::TripleO::Services::IronicPxe
     - OS::TripleO::Services::MySQL
     - OS::TripleO::Services::MySQLClient
+    - OS::TripleO::Services::NeutronDhcpAgent
+    - OS::TripleO::Services::NeutronL3Agent
+    - OS::TripleO::Services::NeutronMetadataAgent
     - OS::TripleO::Services::NeutronServer
     - OS::TripleO::Services::NeutronCorePlugin
-    - OS::TripleO::Services::OVNDBs
-    - OS::TripleO::Services::OVNController
-    - OS::TripleO::Services::OVNMetadataAgent
+    - OS::TripleO::Services::NeutronOvsAgent
     - OS::TripleO::Services::OsloMessagingRpc
     - OS::TripleO::Services::OsloMessagingNotify
     - OS::TripleO::Services::HAproxy
@@ -36,11 +37,12 @@ parameter_defaults:
     - OS::TripleO::Services::NovaPlacement
     - OS::TripleO::Services::NovaMetadata
     - OS::TripleO::Services::NovaScheduler
+    - OS::TripleO::Services::Ntp
     - OS::TripleO::Services::Snmp
     - OS::TripleO::Services::Sshd
     - OS::TripleO::Services::Securetty
-    - OS::TripleO::Services::Timesync
     - OS::TripleO::Services::Timezone
+    - OS::TripleO::Services::MongoDb
     - OS::TripleO::Services::Redis
     - OS::TripleO::Services::TripleoPackages
     - OS::TripleO::Services::TripleoFirewall
@@ -60,5 +62,3 @@ parameter_defaults:
   GlanceBackend: 'file'
   IronicCleaningDiskErase: 'metadata'
   NotificationDriver: 'noop'
-  # Remove ContainerCli once this scenario is tested on CentOS8
-  ContainerCli: docker

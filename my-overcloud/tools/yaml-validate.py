@@ -1,4 +1,4 @@
-#!/usr/libexec/platform-python
+#!/usr/bin/env python
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
 #    a copy of the License at
@@ -50,12 +50,15 @@ required_params = ['EndpointMap', 'ServiceNetMap', 'DefaultPasswords',
 envs_containing_endpoint_map = ['no-tls-endpoints-public-ip.yaml',
                                 'tls-endpoints-public-dns.yaml',
                                 'tls-endpoints-public-ip.yaml',
+                                'tls-everywhere-endpoints-dns.yaml',
+                                'tls-endpoints-public-dns.yaml',
+                                'tls-endpoints-public-ip.yaml',
                                 'tls-everywhere-endpoints-dns.yaml']
 ENDPOINT_MAP_FILE = 'endpoint_map.yaml'
-OPTIONAL_SECTIONS = ['cellv2_discovery']
+OPTIONAL_SECTIONS = ['workflow_tasks', 'cellv2_discovery']
 REQUIRED_DOCKER_SECTIONS = ['service_name', 'docker_config', 'puppet_config',
                             'config_settings']
-OPTIONAL_DOCKER_SECTIONS = ['container_puppet_tasks', 'upgrade_tasks',
+OPTIONAL_DOCKER_SECTIONS = ['docker_puppet_tasks', 'upgrade_tasks',
                             'deploy_steps_tasks',
                             'pre_upgrade_rolling_tasks',
                             'fast_forward_upgrade_tasks',
@@ -64,8 +67,9 @@ OPTIONAL_DOCKER_SECTIONS = ['container_puppet_tasks', 'upgrade_tasks',
                             'post_update_tasks', 'service_config_settings',
                             'host_prep_tasks', 'metadata_settings',
                             'kolla_config', 'global_config_settings',
+                            'logging_source', 'logging_groups',
                             'external_deploy_tasks', 'external_post_deploy_tasks',
-                            'container_config_scripts', 'step_config',
+                            'docker_config_scripts', 'step_config',
                             'monitoring_subscription',
                             'external_update_tasks', 'external_upgrade_tasks']
 # ansible tasks cannot be an empty dict or ansible is unhappy
@@ -121,11 +125,7 @@ PARAMETER_DEFINITION_EXCLUSIONS = {'CephPools': ['description',
                                    'HeatApiLoggingSource': ['default'],
                                    'HeatEngineLoggingSource': ['default'],
                                    'KeystoneLoggingSource': ['default'],
-                                   'KeystoneErrorLoggingSource': ['default'],
-                                   'KeystoneAdminAccessLoggingSource': ['default'],
-                                   'KeystoneAdminErrorLoggingSource': ['default'],
-                                   'KeystoneMainAcccessLoggingSource': ['default'],
-                                   'KeystoneMainErrorLoggingSource': ['default'],
+                                   'MongoDbLoggingSource': ['default'],
                                    'NeutronApiLoggingSource': ['default'],
                                    'NeutronDhcpAgentLoggingSource': ['default'],
                                    'NeutronL3AgentLoggingSource': ['default'],
@@ -174,10 +174,10 @@ PARAMETER_DEFINITION_EXCLUSIONS = {'CephPools': ['description',
                                                                'constraints'],
                                    # NOTE(anil): This is a temporary change and
                                    # will be removed once bug #1767070 properly
-                                   # fixed. OVN supports only VLAN, geneve
-                                   # and flat for NeutronNetworkType. But VLAN
-                                   # tenant networks have a limited support
-                                   # in OVN. Till that is fixed, we restrict
+                                   # fixed. OVN supports only VLAN and geneve
+                                   # for NeutronNetworkType. But VLAN tenant
+                                   # networks have a limited support in OVN.
+                                   # Till that is fixed, we restrict
                                    # NeutronNetworkType to 'geneve'.
                                    'NeutronNetworkType': ['description',
                                                           'default',
@@ -224,25 +224,31 @@ PREFERRED_CAMEL_CASE = {
 # If a filename is not found in the overrides then the top level directory is
 # used to determine which validation method to use.
 VALIDATE_PUPPET_OVERRIDE = {
-  # deployment/rabbitmq/rabbitmq-messaging*.yaml provide oslo_messaging services
-  './deployment/rabbitmq/rabbitmq-messaging-notify-shared-puppet.yaml': False,
-  './deployment/rabbitmq/rabbitmq-messaging-notify-container-puppet.yaml': False,
-  './deployment/rabbitmq/rabbitmq-messaging-rpc-container-puppet.yaml': False,
+  # docker/service/sshd.yaml is a variation of the puppet sshd service
+  './docker/services/sshd.yaml': True,
   # docker/services/messaging/*.yaml provide oslo_messaging services
-  './deployment/messaging/rpc-qdrouterd-container-puppet.yaml': False,
+  './docker/services/messaging/notify-rabbitmq-shared.yaml': False,
+  './docker/services/messaging/notify-rabbitmq.yaml': False,
+  './docker/services/messaging/rpc-rabbitmq.yaml': False,
+  './docker/services/messaging/rpc-qdrouterd.yaml': False,
   # docker/services/pacemaker/*-rabbitmq.yaml provide oslo_messaging services
-  './deployment/rabbitmq/rabbitmq-messaging-notify-pacemaker-puppet.yaml': False,
-  './deployment/rabbitmq/rabbitmq-messaging-rpc-pacemaker-puppet.yaml': False,
+  './docker/services/pacemaker/notify-rabbitmq.yaml': False,
+  './docker/services/pacemaker/rpc-rabbitmq.yaml': False,
   # qdr aliases rabbitmq service to provide alternative messaging backend
   './puppet/services/qdr.yaml': False,
   # puppet/services/messaging/*.yaml provide oslo_messaging services
+  './puppet/services/messaging/notify-rabbitmq-shared.yaml': False,
+  './puppet/services/messaging/notify-rabbitmq.yaml': False,
+  './puppet/services/messaging/rpc-rabbitmq.yaml': False,
   './puppet/services/messaging/rpc-qdrouterd.yaml': False,
 
 }
 VALIDATE_DOCKER_OVERRIDE = {
-  # deployment/rabbitmq/rabbitmq-messaging-notify-shared-puppet.yaml does not
+  # docker/service/sshd.yaml is a variation of the puppet sshd service
+  './docker/services/sshd.yaml': False,
+  # docker/services/messaging/notify-rabbitmq-shared.yaml does not
   # deploy container
-  './deployment/rabbitmq/rabbitmq-messaging-notify-shared-puppet.yaml': False,
+  './docker/services/messaging/notify-rabbitmq-shared.yaml': False,
 }
 DEPLOYMENT_RESOURCE_TYPES = [
     'OS::Heat::SoftwareDeploymentGroup',
@@ -258,17 +264,21 @@ CONFIG_RESOURCE_TYPES = [
     'OS::Heat::StructuredConfig'
 ]
 
+VALID_ANSIBLE_UPGRADE_TAGS = [ 'common', 'validation', 'pre-upgrade' ]
 WORKFLOW_TASKS_EXCLUSIONS = [
-    './deployment/octavia/octavia-deployment-config.yaml',
-    './deployment/ceph-ansible/ceph-external.yaml',
-    './deployment/ceph-ansible/ceph-osd.yaml',
-    './deployment/ceph-ansible/ceph-rbdmirror.yaml',
-    './deployment/ceph-ansible/ceph-client.yaml',
-    './deployment/ceph-ansible/ceph-mds.yaml',
-    './deployment/ceph-ansible/ceph-rgw.yaml',
-    './deployment/ceph-ansible/ceph-base.yaml',
-    './deployment/ceph-ansible/ceph-mon.yaml',
-    './deployment/ceph-ansible/ceph-mgr.yaml',
+    './docker/services/octavia/octavia-deployment-config.yaml',
+    './docker/services/ceph-ansible/ceph-external.yaml',
+    './docker/services/ceph-ansible/ceph-osd.yaml',
+    './docker/services/ceph-ansible/ceph-rbdmirror.yaml',
+    './docker/services/ceph-ansible/ceph-client.yaml',
+    './docker/services/ceph-ansible/ceph-mds.yaml',
+    './docker/services/ceph-ansible/ceph-rgw.yaml',
+    './docker/services/ceph-ansible/ceph-base.yaml',
+    './docker/services/ceph-ansible/ceph-mon.yaml',
+    './docker/services/ceph-ansible/ceph-mgr.yaml',
+    './docker/services/skydive/skydive-base.yaml',
+    './docker/services/skydive/skydive-agent.yaml',
+    './docker/services/skydive/skydive-analyzer.yaml',
 ]
 
 
@@ -278,6 +288,7 @@ ANSIBLE_TASKS_YAMLS = [
 
 HEAT_OUTPUTS_EXCLUSIONS = [
     './puppet/extraconfig/tls/ca-inject.yaml',
+    './puppet/extraconfig/tls/tls-cert-inject.yaml',
     './deployed-server/deployed-server.yaml',
     './extraconfig/tasks/ssh/host_public_key.yaml',
     './extraconfig/pre_network/host_config_and_reboot.yaml'
@@ -442,7 +453,7 @@ def validate_controller_no_ceph_role(filename, tpl):
                 return 1
     return 0
 
-def validate_with_compute_role_services(role_filename, role_tpl, exclude_service=()):
+def validate_with_compute_role_services(role_filename, role_tpl, exclude_service):
     cmpt_filename = os.path.join(os.path.dirname(role_filename),
                                  './Compute.yaml')
     cmpt_tpl = yaml.load(open(cmpt_filename).read())
@@ -456,33 +467,14 @@ def validate_with_compute_role_services(role_filename, role_tpl, exclude_service
               'ServicesDefault in roles/Compute.yaml'.format(role_filename,
               ', '.join(missing_services)))
         return 1
-
-    cmpt_us = cmpt_tpl[0].get('update_serial', None)
-    tpl_us = role_tpl[0].get('update_serial', None)
-
-    if 'OS::TripleO::Services::CephOSD' in role_services:
-        if tpl_us not in (None, 1):
-            print('ERROR: update_serial in {0} ({1}) '
-                  'is should be 1 as it includes CephOSD'.format(
-                      role_filename,
-                      tpl_us,
-                      cmpt_us))
-            return 1
-    elif cmpt_us is not None and tpl_us != cmpt_us:
-        print('ERROR: update_serial in {0} ({1}) '
-              'does not match roles/Compute.yaml {2}'.format(
-                  role_filename,
-                  tpl_us,
-                  cmpt_us))
-        return 1
-
     return 0
+
 
 def validate_multiarch_compute_roles(role_filename, role_tpl):
     errors = 0
     roles_dir = os.path.dirname(role_filename)
     compute_services = set(role_tpl[0].get('ServicesDefault', []))
-    compute_networks = role_tpl[0].get('networks', [])
+    compute_networks = set(role_tpl[0].get('networks', []))
 
     for arch in ['ppc64le']:
         arch_filename = os.path.join(roles_dir,
@@ -497,7 +489,7 @@ def validate_multiarch_compute_roles(role_filename, role_tpl):
             print('ERROR problems with: %s' % (','.join(compute_services.symmetric_difference(arch_services))))
             errors = 1
 
-        arch_networks = arch_tpl[0].get('networks', [])
+        arch_networks = set(arch_tpl[0].get('networks', []))
         if compute_networks != arch_networks:
             print('ERROR networks in %s and %s do not match' %
                   (role_filename, arch_filename))
@@ -618,7 +610,7 @@ def validate_docker_service(filename, tpl):
         for section_name in REQUIRED_DOCKER_SECTIONS:
             if section_name not in role_data:
                 # add an exception if both step_config is used in docker
-                # service, deployment/ceph-ansible/ceph-nfs.yaml uses
+                # service, docker/services/ceph-ansible/ceph-nfs.yaml uses
                 # additional step_config to add pacemaker resources
                 if (section_name == 'docker_config' and
                         role_data.get('step_config', '')):
@@ -712,6 +704,12 @@ def validate_docker_service(filename, tpl):
                 print('ERROR: fast_forward_post_upgrade_tasks validation failed')
                 return 1
 
+        if 'workflow_tasks' in role_data and \
+                filename not in WORKFLOW_TASKS_EXCLUSIONS:
+            print('ERROR: workflow_tasks are no longer supported '
+                  'with config-download in %s.' % filename)
+            return 1
+
     if 'parameters' in tpl:
         for param in required_params:
             if param not in tpl['parameters']:
@@ -746,13 +744,10 @@ def validate_service(filename, tpl):
             print('ERROR: service_name is required in role_data for %s.'
                   % filename)
             return 1
-        # service_name must match the beginning of the file name, but with an
-        # underscore
-        service_name = \
-                os.path.basename(filename).split('.')[0].replace("-", "_")
-        if not role_data['service_name'].startswith(service_name):
-            print('ERROR: service_name should match the beginning of the '
-                  'filename: %s.'
+        # service_name must match the filename, but with an underscore
+        if (role_data['service_name'] !=
+                os.path.basename(filename).split('.')[0].replace("-", "_")):
+            print('ERROR: service_name should match file name for service: %s.'
                   % filename)
             return 1
         # if service connects to mysql, the uri should use option
@@ -907,13 +902,6 @@ def validate_service_hiera_interpol(f, tpl):
             # Omit if external deploy tasks in the path
             if 'external_deploy_tasks' in path:
                 continue
-            # Omit apache remoteip proxy_ips
-            if 'apache::mod::remoteip::proxy_ips' in path:
-                continue
-            # Omit Designate rndc_allowed_addressses
-            if ('tripleo::profile::base::designate::rndc_allowed_addresses' in
-                    path):
-                continue
 
             # Omit if not a part of {get_param: [ServiceNetMap ...
             if not enter_lists and path[-1] != 'get_param':
@@ -926,7 +914,7 @@ def validate_service_hiera_interpol(f, tpl):
             # name. The only exception is allow anything under
             # str_replace['params'] ('str_replace;params' in the str notation).
             # We need to escape because of '$' char may be in templated params.
-            query = re.compile(r'\\;str(\\)?_replace\\;params\\;\S*?net',
+            query = re.compile(r'\\;str\\_replace\\;params\\;\S*?net',
                                re.IGNORECASE)
             if not query.search(re.escape(path_str)):
                 # Keep parsing, if foo_vip_network, or anything
@@ -1071,8 +1059,7 @@ def validate(filename, param_map):
                 VALIDATE_PUPPET_OVERRIDE.get(filename, True)):
             retval |= validate_service(filename, tpl)
 
-        if re.search(r'(puppet|docker)\/services', filename) or \
-                re.search(r'deployment\/', filename):
+        if re.search(r'(puppet|docker)\/services', filename):
             retval |= validate_service_hiera_interpol(filename, tpl)
 
         if filename.startswith('./docker/services/logging/'):
@@ -1088,15 +1075,13 @@ def validate(filename, param_map):
         if filename.startswith('./roles/'):
             retval = validate_role_name(filename)
 
-        if filename.startswith('./roles/ComputeHCI.yaml') or \
-                filename.startswith('./roles/ComputeHCIOvsDpdk.yaml'):
+        if filename.startswith('./roles/ComputeHCI.yaml'):
             retval |= validate_hci_computehci_role(filename, tpl)
 
         if filename.startswith('./roles/ComputeOvsDpdk.yaml') or \
                 filename.startswith('./roles/ComputeSriov.yaml') or \
                 filename.startswith('./roles/ComputeOvsDpdkRT.yaml') or \
-                filename.startswith('./roles/ComputeSriovRT.yaml') or \
-                filename.startswith('./roles/ComputeHCIOvsDpdk.yaml'):
+                filename.startswith('./roles/ComputeSriovRT.yaml'):
             exclude = [
                 'OS::TripleO::Services::OVNController',
                 'OS::TripleO::Services::ComputeNeutronOvsAgent',
@@ -1124,19 +1109,14 @@ def validate(filename, param_map):
         if filename == './roles/Compute.yaml':
             retval |= validate_multiarch_compute_roles(filename, tpl)
 
-        if filename in ('./roles/ComputeLocalEphemeral.yaml',
-                        './roles/ComputeRBDEphemeral.yaml'):
-            retval |= validate_with_compute_role_services(filename, tpl)
-
         # NOTE(hjensas): The routed network data example is very different ...
         # We need to develop a more advanced validator, probably using a schema
         # definition instead.
         # NOTE(mandre): Same goes for the openshift network data where it
         # contains only a subset of the overcloud networks.
         if (filename.startswith('./network_data_') and
-                not filename.endswith(('routed.yaml',
-                                       'openshift.yaml',
-                                       'undercloud.yaml'))):
+                not (filename.endswith('routed.yaml') or
+                     filename.endswith('openshift.yaml'))):
             result = validate_network_data_file(filename)
             retval |= result
         else:
@@ -1161,10 +1141,7 @@ def validate(filename, param_map):
             str_p = '\'%s\'' % p
             in_resources = str_p in str(tpl.get('resources', {}))
             in_outputs = str_p in str(tpl.get('outputs', {}))
-            in_conditions = str_p in str(tpl.get('conditions', {}))
-            in_parameter_groups = str_p in str(tpl.get('parameter_groups', {}))
-            if (not in_resources and not in_outputs and not in_conditions
-                and not in_parameter_groups and args.quiet < 2):
+            if not in_resources and not in_outputs and args.quiet < 2:
                 print('Warning: parameter %s in template %s '
                       'appears to be unused' % (p, filename))
 
@@ -1205,15 +1182,21 @@ def validate_upgrade_tasks(upgrade_tasks):
 
     for task in upgrade_tasks:
         task_name = task.get("name", "")
-        whenline = task.get("when", "")
-        if (type(whenline) == list):
-            if any('step|int ' in condition for condition in whenline) and ('step|int == ' not in whenline[0]):
-                    print('ERROR: \'step|int ==\' condition should be evaluated first in when conditions for task (%s)'  % (task))
-                    return 1
+        if task.get("tags"):
+            if (task["tags"] not in VALID_ANSIBLE_UPGRADE_TAGS):
+                print('ERROR: Task (%s) includes unexpected \'tags: (%s)\' ' % (task_name, task["tags"]))
+                return 1
         else:
-            if (' and ' in whenline) and (' or ' not in whenline) \
-                    and args.quiet < 2:
-                print("Warning: Consider specifying \'and\' conditions as a list to improve readability in task: \"%s\"" %  (task_name))
+
+            whenline = task.get("when", "")
+            if (type(whenline) == list):
+                if any('step|int ' in condition for condition in whenline) and ('step|int == ' not in whenline[0]):
+                        print('ERROR: \'step|int ==\' condition should be evaluated first in when conditions for task (%s)'  % (task))
+                        return 1
+            else:
+                if (' and ' in whenline) and (' or ' not in whenline) \
+                        and args.quiet < 2:
+                    print("Warning: Consider specifying \'and\' conditions as a list to improve readability in task: \"%s\"" %  (task_name))
     return 0
 
 def validate_network_data_file(data_file_path):

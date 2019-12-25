@@ -1,9 +1,7 @@
-## DEPRECATED
-## Sensu service is deprecated and will be removed in future releases.
 ## A Heat environment file which can be used to set up monitoring agents
 
 resource_registry:
-  OS::TripleO::Services::SensuClient: ../deployment/deprecated/monitoring/sensu-client-container-puppet.yaml
+  OS::TripleO::Services::SensuClient: ../docker/services/sensu-client.yaml
 
 #parameter_defaults:
 #  MonitoringRabbitHost: 10.10.10.10

@@ -4,14 +4,10 @@ parameters:
   ControlPlaneIpList:
     default: []
     type: comma_delimited_list
-{%- for network in networks if network.enabled|default(true) %}
+{%- for network in networks %}
   {{network.name}}IpList:
     default: []
     type: comma_delimited_list
-  {{network.name}}NetName:
-    default: {{network.name_lower}}
-    description: The name of the {{network.name_lower}} network.
-    type: string
 {%- endfor %}
   EnabledServices:
     default: []
@@ -25,13 +21,13 @@ parameters:
   NetworkHostnameMap:
     default: []
     type: json
-  NovaAdditionalCell:
-    default: false
-    description: Whether this is an cell additional to the default cell.
-    type: boolean
+{%- for network in networks %}
+  {{network.name}}NetName:
+    default: {{network.name_lower}}
+    description: The name of the {{network.name_lower}} network.
+    type: string
+{%- endfor %}
 
-conditions:
-  is_cell: {equals: [{get_param: NovaAdditionalCell}, true]}
 
 resources:
    # This adds the extra "services" on for keystone
@@ -63,12 +59,11 @@ resources:
       value:
         map_replace:
           - ctlplane: {get_param: ControlPlaneIpList}
-{%- for network in networks if network.enabled|default(true) %}
+{%- for network in networks %}
             {{network.name_lower}}: {get_param: {{network.name}}IpList}
 {%- endfor %}
           - keys:
-              ctlplane: ctlplane  # Ensure one key is present, in case no enabled networks
-{%- for network in networks if network.enabled|default(true) %}
+{%- for network in networks %}
               {{network.name_lower}}: {get_param: {{network.name}}NetName}
 {%- endfor %}
 
@@ -129,20 +124,11 @@ outputs:
               map:
                 map_replace:
                   - map_merge:
-                      if:
-                        - is_cell
-                        -
-                          repeat:
-                            template:
-                              SERVICE_cell_node_names: SERVICE_network
-                            for_each:
-                              SERVICE: {get_attr: [EnabledServicesValue, value]}
-                        -
-                          repeat:
-                            template:
-                              SERVICE_node_names: SERVICE_network
-                            for_each:
-                              SERVICE: {get_attr: [EnabledServicesValue, value]}
+                      repeat:
+                        template:
+                          SERVICE_node_names: SERVICE_network
+                        for_each:
+                          SERVICE: {get_attr: [EnabledServicesValue, value]}
                   - values: {get_param: ServiceNetMap}
         - values: {get_param: NetworkHostnameMap}
   short_service_hostnames:
@@ -178,26 +164,3 @@ outputs:
                   SERVICE_short_bootstrap_node_name: {get_param: ServiceHostnameList}
                 for_each:
                     SERVICE: {get_attr: [EnabledServicesValue, value]}
-  service_bootstrap_ips:
-    description: >
-      Map of enabled services to a list of their IP addresses
-      Used for bootstrap purposes
-    value:
-      yaql:
-        # This filters any entries where the value hasn't been substituted for
-        # a list, e.g it's still $service_network.  This happens when there is
-        # no network defined for the service in the ServiceNetMap, which is OK
-        # as not all services have to be bound to a network, so we filter them
-        expression: dict($.data.map.items().where(not isString($[1])))
-        data:
-          map:
-            map_replace:
-              - map_replace:
-                  - map_merge:
-                      repeat:
-                        template:
-                          SERVICE_bootstrap_node_ip: SERVICE_network
-                        for_each:
-                          SERVICE: {get_attr: [EnabledServicesValue, value]}
-                  - values: {get_param: ServiceNetMap}
-              - values: {get_attr: [NetIpMapValue, value]}

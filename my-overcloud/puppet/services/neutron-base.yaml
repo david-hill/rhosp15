@@ -27,7 +27,7 @@ parameters:
         from neutron.core_plugins namespace.
     type: string
   NeutronServicePlugins:
-    default: "qos,ovn-router,trunk"
+    default: "router,qos,segments,trunk"
     description: |
         Comma-separated list of service plugin entrypoints to be loaded from the
         neutron.service_plugins namespace.
@@ -50,16 +50,6 @@ parameters:
         configuration remnants after upgrades.
   NeutronGlobalPhysnetMtu:
     type: number
-    default: 0
-    description: |
-        MTU of the underlying physical network. Neutron uses this value to
-        calculate MTU for all virtual network components. For flat and VLAN
-        networks, neutron uses this value without modification. For overlay
-        networks such as VXLAN, neutron automatically subtracts the overlay
-        protocol overhead from this value.
-        (If this is not changed TenantNetPhysnetMtu will be used.)
-  TenantNetPhysnetMtu:
-    type: number
     default: 1500
     description: |
         MTU of the underlying physical network. Neutron uses this value to
@@ -67,8 +57,6 @@ parameters:
         networks, neutron uses this value without modification. For overlay
         networks such as VXLAN, neutron automatically subtracts the overlay
         protocol overhead from this value.
-        (The mtu setting of the Tenant network in network_data.yaml
-        control's this parameter.)
   NeutronDBSyncExtraParams:
     default: ''
     description: |
@@ -105,6 +93,11 @@ parameters:
     type: string
     default: 'messagingv2'
     description: Driver or drivers to handle sending notifications.
+    constraints:
+      - allowed_values: [ 'messagingv2', 'noop' ]
+  EnableInternalTLS:
+    type: boolean
+    default: false
   RpcPort:
     default: 5672
     description: The network port for messaging backend
@@ -130,23 +123,10 @@ parameters:
         transparent networks.
     type: boolean
 
-parameter_groups:
-- label: deprecated
-  description: |
-   The following parameters are deprecated and will be removed. They should not
-   be relied on for new deployments. If you have concerns regarding deprecated
-   parameters, please contact the TripleO development team on IRC or the
-   OpenStack mailing list.
-  parameters:
-  - RpcPort
-  - RpcUserName
-  - RpcPassword
-  - RpcUseSSL
-
 conditions:
   dhcp_agents_zero: {equals : [{get_param: NeutronDhcpAgentsPerNetwork}, 0]}
   service_debug_unset: {equals : [{get_param: NeutronDebug}, '']}
-  global_physnet_mtu_unset: {equals: [{get_param: NeutronGlobalPhysnetMtu}, 0]}
+  internal_tls_enabled: {equals: [{get_param: EnableInternalTLS}, true]}
 
 outputs:
   role_data:
@@ -156,9 +136,14 @@ outputs:
       config_settings:
         map_merge:
           - neutron::notification_driver: {get_param: NotificationDriver}
+            # TODO(ansmith): remove once p-t-o switches to oslo params
+            neutron::rabbit_password: {get_param: RpcPassword}
+            neutron::rabbit_user: {get_param: RpcUserName}
+            neutron::rabbit_use_ssl: {get_param: RpcUseSSL}
+            neutron::rabbit_port: {get_param: RpcPort}
             neutron::core_plugin: {get_param: NeutronCorePlugin}
             neutron::service_plugins: {get_param: NeutronServicePlugins}
-            neutron::logging::debug:
+            neutron::debug:
               if:
               - service_debug_unset
               - {get_param: Debug }
@@ -172,14 +157,35 @@ outputs:
             neutron::db::database_db_max_retries: -1
             neutron::db::database_max_retries: -1
             neutron::db::sync::db_sync_timeout: {get_param: DatabaseSyncTimeout}
-            neutron::global_physnet_mtu:
-              if:
-              - global_physnet_mtu_unset
-              - {get_param: TenantNetPhysnetMtu}
-              - {get_param: NeutronGlobalPhysnetMtu}
+            neutron::global_physnet_mtu: {get_param: NeutronGlobalPhysnetMtu}
             neutron::db::sync::extra_params: {get_param: NeutronDBSyncExtraParams}
             neutron::vlan_transparent: {get_param: EnableVLANTransparency}
           - if:
             - dhcp_agents_zero
             - {}
             - tripleo::profile::base::neutron::dhcp_agents_per_network: {get_param: NeutronDhcpAgentsPerNetwork}
+          - if:
+            - internal_tls_enabled
+            - generate_service_certificates: true
+              tripleo::profile::base::neutron::certificate_specs:
+                service_certificate: '/etc/pki/tls/certs/neutron.crt'
+                service_key: '/etc/pki/tls/private/neutron.key'
+                hostname:
+                  str_replace:
+                    template: "%{hiera('fqdn_NETWORK')}"
+                    params:
+                      NETWORK: {get_param: [ServiceNetMap, NeutronApiNetwork]}
+                principal:
+                  str_replace:
+                    template: "neutron/%{hiera('fqdn_NETWORK')}"
+                    params:
+                      NETWORK: {get_param: [ServiceNetMap, NeutronApiNetwork]}
+            - null
+      metadata_settings:
+        if:
+          - internal_tls_enabled
+          -
+            - service: neutron
+              network: {get_param: [ServiceNetMap, NeutronApiNetwork]}
+              type: node
+          - null

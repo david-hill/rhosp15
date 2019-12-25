@@ -24,6 +24,9 @@ parameter_defaults:
     CinderAdmin: {protocol: 'https', port: '8776', host: 'CLOUDNAME'}
     CinderInternal: {protocol: 'https', port: '8776', host: 'CLOUDNAME'}
     CinderPublic: {protocol: 'https', port: '13776', host: 'CLOUDNAME'}
+    CongressAdmin: {protocol: 'https', port: '1789', host: 'CLOUDNAME'}
+    CongressInternal: {protocol: 'https', port: '1789', host: 'CLOUDNAME'}
+    CongressPublic: {protocol: 'https', port: '13789', host: 'CLOUDNAME'}
     DesignateAdmin: {protocol: 'https', port: '9001', host: 'CLOUDNAME'}
     DesignateInternal: {protocol: 'https', port: '9001', host: 'CLOUDNAME'}
     DesignatePublic: {protocol: 'https', port: '13001', host: 'CLOUDNAME'}
@@ -31,7 +34,7 @@ parameter_defaults:
     Ec2ApiAdmin: {protocol: 'https', port: '8788', host: 'CLOUDNAME'}
     Ec2ApiInternal: {protocol: 'https', port: '8788', host: 'CLOUDNAME'}
     Ec2ApiPublic: {protocol: 'https', port: '13788', host: 'CLOUDNAME'}
-    GaneshaInternal: {protocol: 'nfs', port: '2049', host: 'IP_ADDRESS'}
+    GaneshaInternal: {protocol: 'nfs', port: '2049', host: 'CLOUDNAME'}
     GlanceAdmin: {protocol: 'https', port: '9292', host: 'CLOUDNAME'}
     GlanceInternal: {protocol: 'https', port: '9292', host: 'CLOUDNAME'}
     GlancePublic: {protocol: 'https', port: '13292', host: 'CLOUDNAME'}
@@ -79,12 +82,17 @@ parameter_defaults:
     NovaVNCProxyAdmin: {protocol: 'https', port: '6080', host: 'CLOUDNAME'}
     NovaVNCProxyInternal: {protocol: 'https', port: '6080', host: 'CLOUDNAME'}
     NovaVNCProxyPublic: {protocol: 'https', port: '13080', host: 'CLOUDNAME'}
-    OctaviaAdmin: {protocol: 'https', port: '9876', host: 'CLOUDNAME'}
-    OctaviaInternal: {protocol: 'https', port: '9876', host: 'CLOUDNAME'}
+    OctaviaAdmin: {protocol: 'https', port: '9876', host: 'IP_ADDRESS'}
+    OctaviaInternal: {protocol: 'https', port: '9876', host: 'IP_ADDRESS'}
     OctaviaPublic: {protocol: 'https', port: '13876', host: 'CLOUDNAME'}
     OpenDaylightAdmin: {protocol: 'https', port: '8081', host: 'CLOUDNAME'}
     OpenDaylightInternal: {protocol: 'https', port: '8081', host: 'CLOUDNAME'}
-    OvnDbInternal: {protocol: tcp, port: '6642', host: 'IP_ADDRESS'}
+    OpenshiftAdmin: {protocol: 'https', port: '8443', host: 'CLOUDNAME'}
+    OpenshiftInternal: {protocol: 'https', port: '8443', host: 'CLOUDNAME'}
+    OpenshiftPublic: {protocol: 'https', port: '8443', host: 'CLOUDNAME'}
+    OpenshiftRouterAdmin: {protocol: 'https', port: '443', host: 'CLOUDNAME'}
+    OpenshiftRouterInternal: {protocol: 'https', port: '443', host: 'CLOUDNAME'}
+    OpenshiftRouterPublic: {protocol: 'https', port: '443', host: 'CLOUDNAME'}
     PankoAdmin: {protocol: 'https', port: '8977', host: 'CLOUDNAME'}
     PankoInternal: {protocol: 'https', port: '8977', host: 'CLOUDNAME'}
     PankoPublic: {protocol: 'https', port: '13977', host: 'CLOUDNAME'}

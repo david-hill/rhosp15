@@ -1,11 +1,6 @@
 #!/bin/bash
 set -e
 
-# needed to handle where python lives
-function get_python() {
-  command -v python3 || command -v python2 || command -v python || exit 1
-}
-
 function ping_retry() {
   local IP_ADDR=$1
   local TIMES=${2:-'10'}
@@ -38,8 +33,8 @@ function ping_controller_ips() {
       networks=$(ip r | grep -v default | cut -d " " -f 1)
     fi
     for LOCAL_NETWORK in $networks; do
-      in_network=$($(get_python) -c "import ipaddress; net=ipaddress.ip_network(u'$LOCAL_NETWORK'); addr=ipaddress.ip_address(u'$REMOTE_IP'); print(addr in net)")
-      if [[ "${in_network,,}" == "true" ]]; then
+      in_network=$(python -c "import ipaddress; net=ipaddress.ip_network(unicode('$LOCAL_NETWORK')); addr=ipaddress.ip_address(unicode('$REMOTE_IP')); print(addr in net)")
+      if [[ $in_network == "True" ]]; then
         echo "Trying to ping $REMOTE_IP for local network ${LOCAL_NETWORK}."
         set +e
         if ! ping_retry $REMOTE_IP; then
@@ -88,16 +83,6 @@ function fqdn_check() {
   echo "SUCCESS"
 }
 
-# run chrony/ntpdate as available
-function _run_ntp_sync() {
-  local NTP_SERVER=$1
-  if ! type ntpdate 2>/dev/null; then
-    chronyd -Q "server $NTP_SERVER iburst"
-  else
-    ntpdate -qud $NTP_SERVER
-  fi
-}
-
 # Verify at least one time source is available.
 function ntp_check() {
   NTP_SERVERS=$(hiera ntp::servers nil |tr -d '[],"')
@@ -106,7 +91,7 @@ function ntp_check() {
     NTP_SUCCESS=0
     for NTP_SERVER in $NTP_SERVERS; do
       set +e
-      NTPDATE_OUT=$(_run_ntp_sync $NTP_SERVER 2>&1)
+      NTPDATE_OUT=$(ntpdate -qud $NTP_SERVER 2>&1)
       NTPDATE_EXIT=$?
       set -e
       if [[ "$NTPDATE_EXIT" == "0" ]];then
@@ -125,15 +110,11 @@ function ntp_check() {
   fi
 }
 
-if [[ "${validate_gateways_icmp,,}" == "true" ]];then
-  ping_default_gateways
-fi
-if [[ "${validate_controllers_icmp,,}" == "true" ]];then
-  ping_controller_ips "$ping_test_ips"
-fi
-if [[ "${validate_fqdn,,}" == "true" ]];then
+ping_default_gateways
+ping_controller_ips "$ping_test_ips"
+if [[ $validate_fqdn == "True" ]];then
   fqdn_check
 fi
-if [[ "${validate_ntp,,}" == "true" ]];then
+if [[ $validate_ntp == "True" ]];then
   ntp_check
 fi

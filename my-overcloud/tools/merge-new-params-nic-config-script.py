@@ -1,4 +1,4 @@
-#!/usr/libexec/platform-python
+#!/usr/bin/env python
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
 #    a copy of the License at
@@ -39,11 +39,12 @@ def parse_opts(argv):
                         default=('%s/network_data.yaml') % DEFAULT_THT_DIR)
     parser.add_argument('--role-name', metavar='ROLE-NAME',
                         help="Name of the role the NIC config is used for.",
-                        required=True)
+                        default='Controller')
     parser.add_argument('-t', '--template', metavar='TEMPLATE_FILE',
                         help=("Existing NIC config template to merge "
                               "parameter too."),
-                        required=True)
+                        required=True,
+                        )
     parser.add_argument('--tht-dir', metavar='THT_DIR',
                         help=("Path to tripleo-heat-templates (THT) "
                               "directory"),
@@ -200,7 +201,7 @@ def process_templates_and_get_reference_parameters():
            '--network-data ' + OPTS.network_data,
            '--output-dir ' + temp_dir]
     child = subprocess.Popen(' '.join(cmd), shell=True, stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE, universal_newlines=True)
+                             stderr=subprocess.PIPE)
     out, err = child.communicate()
     if not child.returncode == 0:
         raise RuntimeError('Error processing templates: %s' % err)
@@ -209,15 +210,9 @@ def process_templates_and_get_reference_parameters():
     # be used when loading the reference file.
     with open(OPTS.roles_data) as roles_data_file:
         roles_data = yaml.safe_load(roles_data_file)
-    try:
-        nic_config_name = next((x.get('deprecated_nic_config_name',
-                                      OPTS.role_name.lower() + '.yaml')
-                                for x in roles_data
-                                if x['name'] == OPTS.role_name))
-    except StopIteration:
-        raise RuntimeError('The role: {role_name} is not defined in roles '
-                           'data file: {roles_data_file}'.format(
-            role_name=OPTS.role_name, roles_data_file=OPTS.roles_data))
+    nic_config_name = next((x.get('deprecated_nic_config_name',
+                                  OPTS.role_name.lower() + '.yaml') for x in
+                            roles_data if x['name'] == OPTS.role_name))
 
     refernce_file = '/'.join([temp_dir, 'network/config', NIC_CONFIG_REFERENCE,
                               nic_config_name])

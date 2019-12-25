@@ -14,14 +14,10 @@ resource_registry:
   OS::TripleO::Services::Keepalived: OS::Heat::None
 
   # HA Containers managed by pacemaker
-  OS::TripleO::Services::CinderVolume: ../deployment/cinder/cinder-volume-pacemaker-puppet.yaml
-  OS::TripleO::Services::Clustercheck: ../deployment/pacemaker/clustercheck-container-puppet.yaml
-  OS::TripleO::Services::HAproxy: ../deployment/haproxy/haproxy-pacemaker-puppet.yaml
-  OS::TripleO::Services::MySQL: ../deployment/database/mysql-pacemaker-puppet.yaml
-  OS::TripleO::Services::OsloMessagingRpc: ../deployment/rabbitmq/rabbitmq-messaging-rpc-pacemaker-puppet.yaml
-  OS::TripleO::Services::OsloMessagingNotify: ../deployment/rabbitmq/rabbitmq-messaging-notify-shared-puppet.yaml
-  OS::TripleO::Services::Redis: ../deployment/database/redis-pacemaker-puppet.yaml
-  OS::TripleO::Services::OVNDBs: ../deployment/ovn/ovn-dbs-pacemaker-puppet.yaml
-
-parameter_defaults:
-  ContainerCli: podman
+  OS::TripleO::Services::CinderVolume: ../docker/services/pacemaker/cinder-volume.yaml
+  OS::TripleO::Services::Clustercheck: ../docker/services/pacemaker/clustercheck.yaml
+  OS::TripleO::Services::HAproxy: ../docker/services/pacemaker/haproxy.yaml
+  OS::TripleO::Services::MySQL: ../docker/services/pacemaker/database/mysql.yaml
+  OS::TripleO::Services::OsloMessagingRpc: ../docker/services/pacemaker/rpc-rabbitmq.yaml
+  OS::TripleO::Services::OsloMessagingNotify: ../docker/services/messaging/notify-rabbitmq-shared.yaml
+  OS::TripleO::Services::Redis: ../docker/services/pacemaker/database/redis.yaml

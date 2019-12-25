@@ -9,18 +9,6 @@
 #             to original default (optional).  This field is only necessary when
 #             changing the default network names, not when adding a new custom network.
 # enabled: Is the network enabled (optional, defaults to true)
-# external_resource_network_id: Optional. If set, it should be the UUID of an existing already
-#                       created Neutron network that will be used in place of creating a
-#                       new network.
-# external_resource_vip_id: Optional. If set, it should be the UUID of an existing already
-#                           created Neutron port for the VIP that will be used
-#                           in place of creating a new port.
-# external_resource_subnet_id: Optional. If set, it should be the UUID of an existing already
-#                              created Neutron subnet that will be used in place of creating a
-#                              new subnet for the network.
-# external_resource_segment_id: Optional. If set, it should be the UUID of an existing already
-#                               created Neutron segment that will be used in place of creating a
-#                               new segment for the network.
 # NOTE: False will use noop.yaml for unused legacy networks to support upgrades.
 # vlan: vlan for the network (optional)
 # vip: Enable creation of a virtual IP on this network
@@ -35,32 +23,12 @@
 # ipv6_allocation_pools: Set default IPv6 allocation pools if IPv4 allocation pools
 #                        are already defined.
 # gateway_ipv6: Set an IPv6 gateway if IPv4 gateway already defined.
-# routes_ipv6: Optional, list of networks that should be routed via network gateway.
-#              Example: [{'destination':'fd00:fd00:fd00:3004::/64',
-#                         'nexthop':'fd00:fd00:fd00:3000::1'}]
 # ipv6: If ip_subnet not defined, this specifies that the network is IPv6-only.
 # NOTE: IP-related values set parameter defaults in templates, may be overridden,
 # either by operators, or e.g in environments/network-isolation-v6.yaml where we
 # set some default IPv6 addresses.
 # compat_name: for existing stack you may need to override the default
 #              transformation for the resource's name.
-# mtu: Set the maximum transmission unit (MTU) that is guaranteed to pass
-#      through the data path of the segments in the network.
-#      (optional, defaults to 1500)
-# subnets: A map of additional subnets for the network (optional). The map
-#          takes the following format:
-#              {'<subnet name>': {'enabled': '<true|false>',
-#                                 'vlan': '<vlan-id>',
-#                                 'ip_subnet': '<IP/CIDR>',
-#                                 'allocation_pools': '<IP range list>',
-#                                 'gateway_ip': '<gateway IP>',
-#                                 'routes': '<Routes list>',
-#                                 'ipv6_subnet': '<IPv6/CIDR>',
-#                                 'ipv6_allocation_pools': '<IPv6 range list>',
-#                                 'gateway_ipv6': '<IPv6 gateway>',
-#                                 'routes_ipv6': '<Routes list>',
-#                                 'external_resource_subnet_id': '<Existing subnet UUID (optional)>'}}
-#                                 'external_resource_segment_id': '<Existing segment UUID (optional)>'}}
 #
 # Example:
 # - name Example
@@ -94,7 +62,6 @@
   allocation_pools: [{'start': '172.16.1.4', 'end': '172.16.1.250'}]
   ipv6_subnet: 'fd00:fd00:fd00:3000::/64'
   ipv6_allocation_pools: [{'start': 'fd00:fd00:fd00:3000::10', 'end': 'fd00:fd00:fd00:3000:ffff:ffff:ffff:fffe'}]
-  mtu: 1500
 - name: StorageMgmt
   name_lower: storage_mgmt
   vip: true
@@ -103,7 +70,6 @@
   allocation_pools: [{'start': '172.16.3.4', 'end': '172.16.3.250'}]
   ipv6_subnet: 'fd00:fd00:fd00:4000::/64'
   ipv6_allocation_pools: [{'start': 'fd00:fd00:fd00:4000::10', 'end': 'fd00:fd00:fd00:4000:ffff:ffff:ffff:fffe'}]
-  mtu: 1500
 - name: InternalApi
   name_lower: internal_api
   vip: true
@@ -112,16 +78,15 @@
   allocation_pools: [{'start': '172.16.2.4', 'end': '172.16.2.250'}]
   ipv6_subnet: 'fd00:fd00:fd00:2000::/64'
   ipv6_allocation_pools: [{'start': 'fd00:fd00:fd00:2000::10', 'end': 'fd00:fd00:fd00:2000:ffff:ffff:ffff:fffe'}]
-  mtu: 1500
 - name: Tenant
   vip: false  # Tenant network does not use VIPs
   name_lower: tenant
   vlan: 50
   ip_subnet: '172.16.0.0/24'
   allocation_pools: [{'start': '172.16.0.4', 'end': '172.16.0.250'}]
+  # Note that tenant tunneling is only compatible with IPv4 addressing at this time.
   ipv6_subnet: 'fd00:fd00:fd00:5000::/64'
   ipv6_allocation_pools: [{'start': 'fd00:fd00:fd00:5000::10', 'end': 'fd00:fd00:fd00:5000:ffff:ffff:ffff:fffe'}]
-  mtu: 1500
 - name: External
   vip: true
   name_lower: external
@@ -132,7 +97,6 @@
   ipv6_subnet: '2001:db8:fd00:1000::/64'
   ipv6_allocation_pools: [{'start': '2001:db8:fd00:1000::10', 'end': '2001:db8:fd00:1000:ffff:ffff:ffff:fffe'}]
   gateway_ipv6: '2001:db8:fd00:1000::1'
-  mtu: 1500
 - name: Management
   # Management network is enabled by default for backwards-compatibility, but
   # is not included in any roles by default. Add to role definitions to use.
@@ -142,8 +106,5 @@
   vlan: 60
   ip_subnet: '10.0.1.0/24'
   allocation_pools: [{'start': '10.0.1.4', 'end': '10.0.1.250'}]
-  gateway_ip: '10.0.1.1'
-  gateway_ipv6: 'fd00:fd00:fd00:6000::1'
   ipv6_subnet: 'fd00:fd00:fd00:6000::/64'
   ipv6_allocation_pools: [{'start': 'fd00:fd00:fd00:6000::10', 'end': 'fd00:fd00:fd00:6000:ffff:ffff:ffff:fffe'}]
-  mtu: 1500

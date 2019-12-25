@@ -1,4 +1,4 @@
-#!/usr/libexec/platform-python
+#!/usr/bin/env python
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
 #    a copy of the License at
@@ -60,7 +60,6 @@ def to_commented_yaml(filename):
                     spaces+=' '
                     next;
                 elif char == '#':
-                    last_non_comment_spaces = spaces
                     comment_count += 1
                     comment = line[char_count:-1]
                     out_str += "%scomment%i_%i: '%s'\n" % (last_non_comment_spaces, comment_count, len(spaces), comment)
@@ -249,7 +248,7 @@ for base_path in opts.files:
 
             print('The yaml file will be overwritten and the original saved as %s'
                   % backup_filename)
-            if not (opts.yes or input("Overwrite %s? [y/n] " % base_path).lower() == 'y'):
+            if not (opts.yes or raw_input("Overwrite %s? [y/n] " % base_path).lower() == 'y'):
                 print("Skipping file %s" % base_path)
                 continue
 

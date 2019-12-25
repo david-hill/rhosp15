@@ -1,5 +1,5 @@
 resource_registry:
-  OS::TripleO::Services::CephExternal: ../../deployment/ceph-ansible/ceph-external.yaml
+  OS::TripleO::Services::CephExternal: ../../docker/services/ceph-ansible/ceph-external.yaml
 
 parameter_defaults:
   # NOTE: These example parameters are required when using CephExternal
@@ -25,9 +25,3 @@ parameter_defaults:
 
   # finally we disable the Cinder LVM backend
   CinderEnableIscsiBackend: false
-
-  # NOTE: The EnableRhcs4Beta temporary parameter is false by default in
-  # ceph-base.yaml and it avoids internal ceph deployments, but external
-  # ceph is still allowed, so we need to set it to true and let the
-  # playbook continue.
-  EnableRhcs4Beta: true

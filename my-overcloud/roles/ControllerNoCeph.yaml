@@ -10,16 +10,11 @@
     - primary
     - controller
   networks:
-    External:
-      subnet: external_subnet
-    InternalApi:
-      subnet: internal_api_subnet
-    Storage:
-      subnet: storage_subnet
-    StorageMgmt:
-      subnet: storage_mgmt_subnet
-    Tenant:
-      subnet: tenant_subnet
+    - External
+    - InternalApi
+    - Storage
+    - StorageMgmt
+    - Tenant
   default_route_networks: ['External']
   HostnameFormatDefault: '%stackname%-controller-no-ceph-%index%'
   # Deprecated & backward-compatible values (FIXME: Make parameters consistent)
@@ -28,7 +23,6 @@
   deprecated_param_extraconfig: 'controllerExtraConfig'
   deprecated_param_flavor: 'OvercloudControlFlavor'
   deprecated_param_image: 'controllerImage'
-  update_serial: 1
   ServicesDefault:
     - OS::TripleO::Services::Aide
     - OS::TripleO::Services::AodhApi
@@ -41,7 +35,6 @@
     - OS::TripleO::Services::BarbicanBackendDogtag
     - OS::TripleO::Services::BarbicanBackendKmip
     - OS::TripleO::Services::BarbicanBackendPkcs11Crypto
-    - OS::TripleO::Services::BootParams
     - OS::TripleO::Services::CACerts
     - OS::TripleO::Services::CeilometerAgentCentral
     - OS::TripleO::Services::CeilometerAgentNotification
@@ -56,7 +49,6 @@
     - OS::TripleO::Services::CinderBackendDellEMCVNX
     - OS::TripleO::Services::CinderBackendDellEMCXTREMIOISCSI
     - OS::TripleO::Services::CinderBackendNetApp
-    - OS::TripleO::Services::CinderBackendPure
     - OS::TripleO::Services::CinderBackendScaleIO
     - OS::TripleO::Services::CinderBackendVRTSHyperScale
     - OS::TripleO::Services::CinderBackendNVMeOF
@@ -67,6 +59,7 @@
     - OS::TripleO::Services::Clustercheck
     - OS::TripleO::Services::ContainerImagePrepare
     - OS::TripleO::Services::Collectd
+    - OS::TripleO::Services::Congress
     - OS::TripleO::Services::DesignateApi
     - OS::TripleO::Services::DesignateCentral
     - OS::TripleO::Services::DesignateProducer
@@ -79,6 +72,7 @@
     - OS::TripleO::Services::ExternalSwiftProxy
     - OS::TripleO::Services::Fluentd
     - OS::TripleO::Services::GlanceApi
+    - OS::TripleO::Services::GlanceRegistry
     - OS::TripleO::Services::GnocchiApi
     - OS::TripleO::Services::GnocchiMetricd
     - OS::TripleO::Services::GnocchiStatsd
@@ -88,7 +82,6 @@
     - OS::TripleO::Services::HeatApiCfn
     - OS::TripleO::Services::HeatEngine
     - OS::TripleO::Services::Horizon
-    - OS::TripleO::Services::IpaClient
     - OS::TripleO::Services::Ipsec
     - OS::TripleO::Services::IronicApi
     - OS::TripleO::Services::IronicConductor
@@ -115,6 +108,7 @@
     - OS::TripleO::Services::MistralEngine
     - OS::TripleO::Services::MistralExecutor
     - OS::TripleO::Services::MistralEventEngine
+    - OS::TripleO::Services::MongoDb
     - OS::TripleO::Services::MySQL
     - OS::TripleO::Services::MySQLClient
     - OS::TripleO::Services::NeutronApi
@@ -141,6 +135,7 @@
     - OS::TripleO::Services::NovaPlacement
     - OS::TripleO::Services::NovaScheduler
     - OS::TripleO::Services::NovaVncProxy
+    - OS::TripleO::Services::Ntp
     - OS::TripleO::Services::ContainersLogrotateCrond
     - OS::TripleO::Services::OctaviaApi
     - OS::TripleO::Services::OctaviaDeploymentConfig
@@ -149,14 +144,12 @@
     - OS::TripleO::Services::OctaviaWorker
     - OS::TripleO::Services::OpenDaylightApi
     - OS::TripleO::Services::OpenDaylightOvs
-    - OS::TripleO::Services::OpenStackClients
     - OS::TripleO::Services::OVNDBs
     - OS::TripleO::Services::OVNController
     - OS::TripleO::Services::Pacemaker
     - OS::TripleO::Services::PankoApi
     - OS::TripleO::Services::OsloMessagingRpc
     - OS::TripleO::Services::OsloMessagingNotify
-    - OS::TripleO::Services::Podman
     - OS::TripleO::Services::Redis
     - OS::TripleO::Services::Rhsm
     - OS::TripleO::Services::RsyslogSidecar
@@ -164,6 +157,8 @@
     - OS::TripleO::Services::SaharaEngine
     - OS::TripleO::Services::Securetty
     - OS::TripleO::Services::SensuClient
+    - OS::TripleO::Services::SkydiveAgent
+    - OS::TripleO::Services::SkydiveAnalyzer
     - OS::TripleO::Services::Snmp
     - OS::TripleO::Services::Sshd
     - OS::TripleO::Services::SwiftProxy
@@ -171,10 +166,11 @@
     - OS::TripleO::Services::SwiftRingBuilder
     - OS::TripleO::Services::SwiftStorage
     - OS::TripleO::Services::Tacker
-    - OS::TripleO::Services::Timesync
     - OS::TripleO::Services::Timezone
     - OS::TripleO::Services::TripleoFirewall
     - OS::TripleO::Services::TripleoPackages
     - OS::TripleO::Services::Tuned
     - OS::TripleO::Services::Vpp
     - OS::TripleO::Services::Zaqar
+    - OS::TripleO::Services::Ptp
+    - OS::TripleO::Services::Xinetd

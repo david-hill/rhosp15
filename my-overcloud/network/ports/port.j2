@@ -51,9 +51,7 @@ conditions:
     - ctlplane
   fixed_ip_not_set:
     equals:
-    - yaql:
-        expression: $.data.where($.get('ip_address'))
-        data: {get_param: FixedIPs}
+    - get_param: FixedIPs
     - []
   net_is_ctlplane_and_fixed_ip_not_set:
     and:
@@ -64,9 +62,6 @@ resources:
 
   {{network.name}}Port:
     type: OS::Neutron::Port
-  {%- if set_external_id|default(false) and network.external_resource_vip_id|default('') %}
-    external_id: {{network.external_resource_vip_id}}
-  {%- endif %}
     properties:
       network: {get_param: {{network.name}}NetName}
       name: {get_param: PortName}
@@ -106,11 +101,3 @@ outputs:
     description: Host routes of the ports subnet
     value:
           get_attr: [{{network.name}}Port, subnets, 0, host_routes]
-  mtu:
-    description: The maximum transmission unit (MTU)
-    value:
-          get_attr: [{{network.name}}Port, network, mtu]
-  gateway_ip:
-    description: Gateway IP of the ports subnet
-    value:
-          get_attr: [{{network.name}}Port, subnets, 0, gateway_ip]

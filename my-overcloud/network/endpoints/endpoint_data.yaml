@@ -82,6 +82,15 @@ Cinder:
             V3: /v3/%(tenant_id)s
     port: 8776
 
+Congress:
+    Internal:
+        net_param: CongressApi
+    Public:
+        net_param: Public
+    Admin:
+        net_param: CongressApi
+    port: 1789
+
 Glance:
     Internal:
         net_param: GlanceApi
@@ -96,12 +105,6 @@ Mysql:
         net_param: Mysql
     protocol: mysql+pymysql
     port: 3306
-
-OvnDb:
-    Internal:
-        net_param: OvnDbs
-    protocol: tcp
-    port: 6642
 
 Heat:
     Internal:
@@ -264,6 +267,24 @@ NovaVNCProxy:
         net_param: NovaApi
     port: 6080
 
+Openshift:
+    Internal:
+        net_param: OpenshiftMaster
+    Public:
+        net_param: Public
+    Admin:
+        net_param: OpenshiftMaster
+    port: 8443
+
+OpenshiftRouter:
+    Internal:
+        net_param: OpenshiftInfra
+    Public:
+        net_param: Public
+    Admin:
+        net_param: OpenshiftInfra
+    port: 80
+
 Swift:
     Internal:
         net_param: SwiftProxy
@@ -291,24 +312,30 @@ CephRgw:
     Internal:
         net_param: CephRgw
         uri_suffixes:
-            '': /swift/v1/AUTH_%(project_id)s
+            '': /swift/v1
     Public:
         net_param: Public
         uri_suffixes:
-            '': /swift/v1/AUTH_%(project_id)s
+            '': /swift/v1
     Admin:
         net_param: CephRgw
         uri_suffixes:
-            '': /swift/v1/AUTH_%(project_id)s
+            '': /swift/v1
     port: 8080
 
 Sahara:
     Internal:
         net_param: SaharaApi
+        uri_suffixes:
+            '': /v1.1/%(tenant_id)s
     Public:
         net_param: Public
+        uri_suffixes:
+            '': /v1.1/%(tenant_id)s
     Admin:
         net_param: SaharaApi
+        uri_suffixes:
+            '': /v1.1/%(tenant_id)s
     port: 8386
 
 Tacker:

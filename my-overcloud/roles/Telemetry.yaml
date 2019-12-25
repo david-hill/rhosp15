@@ -5,12 +5,9 @@
   description: |
     Telemetry role that has all the telemetry services.
   networks:
-    InternalApi:
-      subnet: internal_api_subnet
-    Storage:
-      subnet: storage_subnet
+    - InternalApi
+    - Storage
   HostnameFormatDefault: '%stackname%-telemetry-%index%'
-  update_serial: 1
   ServicesDefault:
     - OS::TripleO::Services::Aide
     - OS::TripleO::Services::AodhApi
@@ -18,7 +15,6 @@
     - OS::TripleO::Services::AodhListener
     - OS::TripleO::Services::AodhNotifier
     - OS::TripleO::Services::AuditD
-    - OS::TripleO::Services::BootParams
     - OS::TripleO::Services::CACerts
     - OS::TripleO::Services::CeilometerAgentCentral
     - OS::TripleO::Services::CeilometerAgentNotification
@@ -32,15 +28,14 @@
     - OS::TripleO::Services::GnocchiApi
     - OS::TripleO::Services::GnocchiMetricd
     - OS::TripleO::Services::GnocchiStatsd
-    - OS::TripleO::Services::IpaClient
     - OS::TripleO::Services::Ipsec
     - OS::TripleO::Services::Kernel
     - OS::TripleO::Services::LoginDefs
     - OS::TripleO::Services::MetricsQdr
     - OS::TripleO::Services::MySQLClient
+    - OS::TripleO::Services::Ntp
     - OS::TripleO::Services::Pacemaker
     - OS::TripleO::Services::PankoApi
-    - OS::TripleO::Services::Podman
     - OS::TripleO::Services::Redis
     - OS::TripleO::Services::Rhsm
     - OS::TripleO::Services::RsyslogSidecar
@@ -48,7 +43,6 @@
     - OS::TripleO::Services::SensuClient
     - OS::TripleO::Services::Snmp
     - OS::TripleO::Services::Sshd
-    - OS::TripleO::Services::Timesync
     - OS::TripleO::Services::Timezone
     - OS::TripleO::Services::TripleoFirewall
     - OS::TripleO::Services::TripleoPackages

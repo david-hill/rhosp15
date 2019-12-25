@@ -1,4 +1,4 @@
-#!/usr/libexec/platform-python
+#!/usr/bin/env python
 
 """
 Generate the endpoint_map.yaml template from data in the endpoint_data.yaml

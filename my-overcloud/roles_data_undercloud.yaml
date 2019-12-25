@@ -13,9 +13,6 @@
   tags:
     - primary
     - controller
-  networks:
-    External:
-      subnet: external_subnet
   ServicesDefault:
     - OS::TripleO::Services::Aide
     - OS::TripleO::Services::AodhApi
@@ -38,6 +35,7 @@
     - OS::TripleO::Services::CinderVolume
     - OS::TripleO::Services::ContainerImagePrepare
     - OS::TripleO::Services::ContainersLogrotateCrond
+    - OS::TripleO::Services::Docker
     - OS::TripleO::Services::DockerRegistry
     - OS::TripleO::Services::GlanceApi
     - OS::TripleO::Services::GnocchiApi
@@ -64,7 +62,6 @@
     - OS::TripleO::Services::MistralEventEngine
     - OS::TripleO::Services::MistralExecutor
     - OS::TripleO::Services::MySQL
-    - OS::TripleO::Services::MySQLClient
     - OS::TripleO::Services::NeutronApi
     - OS::TripleO::Services::NeutronCorePlugin
     - OS::TripleO::Services::NeutronDhcpAgent
@@ -77,11 +74,11 @@
     - OS::TripleO::Services::NovaPlacement
     - OS::TripleO::Services::NovaScheduler
     - OS::TripleO::Services::Novajoin
+    - OS::TripleO::Services::Ntp
     - OS::TripleO::Services::OpenStackClients
     - OS::TripleO::Services::OsloMessagingNotify
     - OS::TripleO::Services::OsloMessagingRpc
     - OS::TripleO::Services::PankoApi
-    - OS::TripleO::Services::Podman
     - OS::TripleO::Services::Redis
     - OS::TripleO::Services::Rhsm
     - OS::TripleO::Services::SELinux
@@ -90,13 +87,11 @@
     - OS::TripleO::Services::SwiftRingBuilder
     - OS::TripleO::Services::SwiftStorage
     - OS::TripleO::Services::Tempest
-    - OS::TripleO::Services::Timesync
-    - OS::TripleO::Services::Timezone
-    - OS::TripleO::Services::Tmpwatch
     - OS::TripleO::Services::TripleoFirewall
     - OS::TripleO::Services::TripleoUI
     - OS::TripleO::Services::Tuned
     - OS::TripleO::Services::UndercloudUpgrade
     - OS::TripleO::Services::TripleoValidations
     - OS::TripleO::Services::Zaqar
+    - OS::TripleO::Services::Xinetd
 

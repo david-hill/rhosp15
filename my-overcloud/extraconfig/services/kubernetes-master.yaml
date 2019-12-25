@@ -44,7 +44,7 @@ outputs:
     value:
       service_name: kubernetes_master
       config_settings:
-        tripleo::kubernetes_master::firewall_rules:
+        tripleo.kubernetes_master.firewall_rules:
           '200 kubernetes-master api':
             dport: 6443
             proto: tcp
@@ -96,11 +96,9 @@ outputs:
           when: step|int == 2
           block:
             - name: create kubespray temp dirs
-              become: true
               file:
                 path: "{{item}}"
                 state: directory
-                owner: "{{ ansible_user }}"
               with_items:
                 - "{{playbook_dir}}/kubespray"
                 - "{{playbook_dir}}/kubespray/artifacts"
@@ -155,7 +153,7 @@ outputs:
               copy:
                 dest: "{{playbook_dir}}/kubespray/playbook.yml"
                 content: |
-                  - import_playbook: {{ kubespray_dir|default('/usr/share/kubespray') }}/cluster.yml
+                  - include: {{ kubespray_dir|default('/usr/share/kubespray') }}/cluster.yml
             - name: set kubespray command
               set_fact:
                 # NOTE: We could let kubespray configure docker

@@ -1,4 +1,4 @@
-#!/usr/libexec/platform-python
+#!/usr/bin/env python
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
 #    a copy of the License at
@@ -110,14 +110,10 @@ def process_templates(template_path, role_data_path, output_dir,
 
     with open(network_data_path) as network_data_file:
         network_data = yaml.safe_load(network_data_file)
-        if network_data is None:
-            network_data = []
 
-    j2_excludes = {}
     j2_excludes_path = os.path.join(template_path, 'j2_excludes.yaml')
-    if os.path.exists(j2_excludes_path):
-        with open(j2_excludes_path) as role_data_file:
-            j2_excludes = yaml.safe_load(role_data_file)
+    with open(j2_excludes_path) as role_data_file:
+        j2_excludes = yaml.safe_load(role_data_file)
 
     if output_dir and not os.path.isdir(output_dir):
         if os.path.exists(output_dir):
@@ -139,7 +135,7 @@ def process_templates(template_path, role_data_path, output_dir,
             print("skipping %s network: network is disabled" % n.get('name'))
 
     excl_templates = ['%s/%s' % (template_path, e)
-                      for e in j2_excludes.get('name', [])]
+                      for e in j2_excludes.get('name')]
 
     if os.path.isdir(template_path):
         for subdir, dirs, files in os.walk(template_path):
@@ -299,9 +295,6 @@ def clean_templates(base_path, role_data_path, network_data_path):
             'network', '%s_from_pool_v6.yaml' % network['name_lower'])
         ports_path = os.path.join(
             'network', 'ports', '%s.yaml' % network['name_lower'])
-        external_resource_ports_path = os.path.join(
-            'network', 'ports',
-            'external_resource_%s.yaml' % network['name_lower'])
         ports_from_pool_path = os.path.join(
             'network', 'ports', '%s_from_pool.yaml' % network['name_lower'])
         ports_v6_path = os.path.join(
@@ -314,7 +307,6 @@ def clean_templates(base_path, role_data_path, network_data_path):
         delete(network_v6_path)
         delete(network_from_pool_v6_path)
         delete(ports_path)
-        delete(external_resource_ports_path)
         delete(ports_from_pool_path)
         delete(ports_v6_path)
         delete(ports_from_pool_v6_path)
@@ -328,16 +320,9 @@ def clean_templates(base_path, role_data_path, network_data_path):
         host_config_and_reboot_path = os.path.join(
             'extraconfig', 'pre_network',
             '%s-host_config_and_reboot.yaml' % role['name'].lower())
-        krb_service_principals_path = os.path.join(
-            'extraconfig', 'nova_metadata', 'krb-service-principals',
-            '%s-role.yaml' % role['name'].lower())
-        common_services_path = os.path.join(
-            'common', 'services', '%s-role.yaml' % role['name'].lower())
 
         delete(role_path)
         delete(host_config_and_reboot_path)
-        delete(krb_service_principals_path)
-        delete(common_services_path)
 
         nic_config_dir = os.path.join(base_path, 'network', 'config')
         for sample_nic_config_dir in os.listdir(nic_config_dir):
