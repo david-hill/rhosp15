@@ -122,6 +122,7 @@ outputs:
                   - /var/lib/kolla/config_files/ironic_pxe_tftp.json:/var/lib/kolla/config_files/config.json:ro
                   - /var/lib/config-data/puppet-generated/ironic/:/var/lib/kolla/config_files/src:ro
                   - /var/lib/ironic:/var/lib/ironic/:shared,z
+                  - /dev/log:/dev/log
                   - /var/log/containers/ironic:/var/log/ironic:z
                   - /var/log/containers/httpd/ironic-pxe:/var/log/httpd:z
             environment:
@@ -133,8 +134,6 @@ outputs:
             privileged: false
             security_opt: 'label=disable'
             restart: always
-            healthcheck:
-              test: /openstack/healthcheck
             volumes:
               list_concat:
                 - {get_attr: [ContainersCommon, volumes]}

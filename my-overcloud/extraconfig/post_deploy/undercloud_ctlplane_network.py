@@ -61,9 +61,6 @@ def _ensure_neutron_network(sdk):
 
     return network
 
-def _get_nameservers_for_version(servers, ipversion):
-    """Get list of nameservers for an IP version"""
-    return [s for s in servers if netaddr.IPAddress(s).version == ipversion]
 
 def _neutron_subnet_create(sdk, network_id, cidr, gateway, host_routes,
                            allocation_pools, name, segment_id, dns_nameservers):
@@ -80,8 +77,7 @@ def _neutron_subnet_create(sdk, network_id, cidr, gateway, host_routes,
                 allocation_pools=allocation_pools,
                 network_id=network_id,
                 segment_id=segment_id,
-                dns_nameservers=_get_nameservers_for_version(dns_nameservers,
-                                                             6))
+                dns_nameservers=dns_nameservers)
         else:
             subnet = sdk.network.create_subnet(
                 name=name,
@@ -93,8 +89,7 @@ def _neutron_subnet_create(sdk, network_id, cidr, gateway, host_routes,
                 allocation_pools=allocation_pools,
                 network_id=network_id,
                 segment_id=segment_id,
-                dns_nameservers=_get_nameservers_for_version(dns_nameservers,
-                                                             4))
+                dns_nameservers=dns_nameservers)
             print('INFO: Subnet created %s' % subnet)
     except Exception:
         print('ERROR: Create subnet %s failed.' % name)
@@ -112,8 +107,7 @@ def _neutron_subnet_update(sdk, subnet_id, cidr, gateway, host_routes,
                 name=name,
                 gateway_ip=gateway,
                 allocation_pools=allocation_pools,
-                dns_nameservers=_get_nameservers_for_version(dns_nameservers,
-                                                             6))
+                dns_nameservers=dns_nameservers)
         else:
             subnet = sdk.network.update_subnet(
                 subnet_id,
@@ -121,8 +115,7 @@ def _neutron_subnet_update(sdk, subnet_id, cidr, gateway, host_routes,
                 gateway_ip=gateway,
                 host_routes=host_routes,
                 allocation_pools=allocation_pools,
-                dns_nameservers=_get_nameservers_for_version(dns_nameservers,
-                                                             4))
+                dns_nameservers=dns_nameservers)
         print('INFO: Subnet updated %s' % subnet)
     except Exception:
         print('ERROR: Update of subnet %s failed.' % name)

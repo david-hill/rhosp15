@@ -291,15 +291,15 @@ CephRgw:
     Internal:
         net_param: CephRgw
         uri_suffixes:
-            '': /swift/v1/AUTH_%(project_id)s
+            '': /swift/v1
     Public:
         net_param: Public
         uri_suffixes:
-            '': /swift/v1/AUTH_%(project_id)s
+            '': /swift/v1
     Admin:
         net_param: CephRgw
         uri_suffixes:
-            '': /swift/v1/AUTH_%(project_id)s
+            '': /swift/v1
     port: 8080
 
 Sahara:

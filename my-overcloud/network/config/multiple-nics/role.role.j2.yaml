@@ -1,10 +1,10 @@
 {#- Convert net map or net list to internal list of networks #}
 {#- NOTE(hjensas): For backward compatibility support role data with both #}
 {#-                networks map (new schema) and network list (old schema). #}
+{%- set _role_networks = [] %}
 {%- if role.networks is mapping %}
-{%-     set _role_networks = [] %}
-{%-     for key, val in role.networks.items() %}
-{%-         set _ = _role_networks.append(key) %}
+{%-     for key,val in role.networks.items() %}
+{%-         set _role_networks = _role_networks.append(key) %}
 {%-     endfor %}
 {%- else %}
 {%-     set _role_networks = role.networks %}
@@ -155,8 +155,7 @@ resources:
                           get_param: {{network.name}}InterfaceDefaultRoute
 {%-             endif %}
 {%-         endif %}
-{#- We need bridge also for ComputeDVR and Computes with OVN #}
-{%-     elif network.name in role.networks or 'external_bridge' in role.tags %}
+{%-     elif network.name in role.networks or role.name == 'Networker' or role.name == 'ComputeDVR' %}
               - type: ovs_bridge
 {%-         if network.name == "External" %}
                 name: bridge_name

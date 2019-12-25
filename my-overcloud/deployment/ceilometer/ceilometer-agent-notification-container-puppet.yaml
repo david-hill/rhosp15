@@ -98,19 +98,17 @@ outputs:
         /var/lib/kolla/config_files/ceilometer_agent_notification.json:
           command: /usr/bin/ceilometer-agent-notification --logfile /var/log/ceilometer/agent-notification.log
           config_files:
-            list_concat:
-              - - source: "/var/lib/kolla/config_files/src/*"
+            - source: "/var/lib/kolla/config_files/src/*"
+              dest: "/"
+              merge: true
+              preserve_properties: true
+            - if:
+                - ceilometer_enable_panko
+                - source: "/var/lib/kolla/config_files/src-panko/*"
                   dest: "/"
                   merge: true
                   preserve_properties: true
-              - if:
-                  - ceilometer_enable_panko
-                  - - source: "/var/lib/kolla/config_files/src-panko/*"
-                      dest: "/"
-                      merge: true
-                      preserve_properties: true
-                  - null
-
+                - null
           permissions:
             - path: /etc/panko
               owner: root:ceilometer
@@ -178,21 +176,6 @@ outputs:
           vars:
             containers_to_rm:
               - ceilometer_agent_notification
-      external_upgrade_tasks:
-        - when:
-            - step|int == 1
-          tags:
-            - never
-            - system_upgrade_transfer_data
-            - system_upgrade_stop_services
-          block:
-            - name: Stop ceilometer agent notification container
-              import_role:
-                name: tripleo-container-stop
-              vars:
-                tripleo_containers_to_stop:
-                  - ceilometer_agent_notification
-                tripleo_delegate_to: "{{ groups['ceilometer_agent_notification'] | default([]) }}"
       fast_forward_upgrade_tasks:
         - when:
             - step|int == 0

@@ -34,10 +34,6 @@ parameters:
     description: Port of the OVN Southbound DB server
     type: number
     default: 6642
-  OVNNorthboundServerPort:
-    description: Port of the OVN Northbound DB server
-    type: number
-    default: 6641
   OVNDbConnectionTimeout:
     description: Timeout in seconds for the OVSDB connection transaction
     type: number
@@ -89,19 +85,9 @@ parameters:
     default: []
     description: List of servers to use as as dns forwarders
     type: comma_delimited_list
-  NeutronVhostuserSocketDir:
-    default: ""
-    description: The vhost-user socket directory for OVS
-    type: string
-    tags:
-      - role_specific
 
 conditions:
   neutron_dvr_unset: {equals : [{get_param: NeutronEnableDVR}, '']}
-  vhostuser_dir_set:
-    or:
-    - {not: {equals: [{get_param: NeutronVhostuserSocketDir}, ""]}}
-    - {not: {equals: [{get_param: [RoleParameters, NeutronVhostuserSocketDir]}, ""]}}
 
 resources:
 
@@ -124,7 +110,6 @@ outputs:
         map_merge:
           - get_attr: [NeutronMl2Base, role_data, config_settings]
           - ovn::southbound::port: {get_param: OVNSouthboundServerPort}
-            ovn::northbound::port: {get_param: OVNNorthboundServerPort}
             neutron::plugins::ml2::ovn::ovsdb_connection_timeout: {get_param: OVNDbConnectionTimeout}
             neutron::plugins::ml2::ovn::neutron_sync_mode: {get_param: OVNNeutronSyncMode}
             neutron::plugins::ml2::ovn::ovn_l3_mode: true
@@ -139,17 +124,6 @@ outputs:
               - neutron_dvr_unset
               - neutron::plugins::ml2::ovn::dvr_enabled: true
               - neutron::plugins::ml2::ovn::dvr_enabled: {get_param: NeutronEnableDVR}
-          -
-            if:
-              - vhostuser_dir_set
-              - map_replace:
-                - map_replace:
-                  - neutron::plugins::ml2::ovn::vhostuser_socket_dir: NeutronVhostuserSocketDir
-                  - values: {get_param: RoleParameters}
-                - values:
-                    NeutronVhostuserSocketDir: {get_param: NeutronVhostuserSocketDir}
-              - {}
-
       step_config: |
         include ::tripleo::profile::base::neutron::plugins::ml2
       metadata_settings:

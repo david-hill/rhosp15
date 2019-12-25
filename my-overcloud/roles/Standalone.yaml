@@ -12,17 +12,6 @@
     - primary
     - controller
     - standalone
-  networks:
-    External:
-      subnet: external_subnet
-    InternalApi:
-      subnet: internal_api_subnet
-    Storage:
-      subnet: storage_subnet
-    StorageMgmt:
-      subnet: storage_mgmt_subnet
-    Tenant:
-      subnet: tenant_subnet
   disable_constraints: True
   ServicesDefault:
     - OS::TripleO::Services::Aide
@@ -173,6 +162,8 @@
     - OS::TripleO::Services::Securetty
     - OS::TripleO::Services::SELinux
     - OS::TripleO::Services::SensuClient
+    - OS::TripleO::Services::SkydiveAgent
+    - OS::TripleO::Services::SkydiveAnalyzer
     - OS::TripleO::Services::Snmp
     - OS::TripleO::Services::Sshd
     - OS::TripleO::Services::SwiftDispersion

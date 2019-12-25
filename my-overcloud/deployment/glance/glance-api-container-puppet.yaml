@@ -79,22 +79,6 @@ parameters:
     description: Enable Glance Image Cache
     type: boolean
     default: False
-  GlanceImageCacheDir:
-    description: Base directory that the Image Cache uses
-    type: string
-    default: '/var/lib/glance/image-cache'
-  GlanceImageCacheMaxSize:
-    description: >
-      The upper limit on cache size, in bytes, after which the cache-pruner
-      cleans up the image cache.
-    type: number
-    default: 10737418240
-  GlanceImageCacheStallTime:
-    description: >
-      The amount of time, in seconds, to let an image remain in the cache
-      without being accessed.
-    type: number
-    default: 86400
   GlanceNfsShare:
     default: ''
     description: >
@@ -111,7 +95,7 @@ parameters:
       Netapp share to mount for image storage (when GlanceNetappNfsEnabled is true)
     type: string
   GlanceNfsOptions:
-    default: '_netdev,bg,intr,context=system_u:object_r:svirt_sandbox_file_t:s0'
+    default: '_netdev,bg,intr,context=system_u:object_r:glance_var_lib_t:s0'
     description: >
       NFS mount options for image storage (when GlanceNfsEnabled is true)
     type: string
@@ -120,15 +104,7 @@ parameters:
     type: string
   NovaEnableRbdBackend:
     default: false
-    description: Whether to enable the Rbd backend for Nova ephemeral storage.
-    type: boolean
-    tags:
-      - role_specific
-  GlanceShowMultipleLocations:
-    default: false
-    description: |
-      Whether to show multiple image locations e.g for copy-on-write support on
-      RBD or Netapp backends. Potential security risk, see glance.conf for more information.
+    description: Whether to enable or not the Rbd backend for Nova
     type: boolean
   GlanceImageImportPlugins:
     default: []
@@ -165,7 +141,7 @@ parameters:
       URI that specifies the staging location to use when importing images
     type: string
   GlanceStagingNfsOptions:
-    default: '_netdev,bg,intr,context=system_u:object_r:svirt_sandbox_file_t:s0'
+    default: '_netdev,bg,intr,context=system_u:object_r:glance_var_lib_t:s0'
     description: >
       NFS mount options for NFS image import staging
     type: string
@@ -261,10 +237,6 @@ conditions:
   internal_tls_enabled: {equals: [{get_param: EnableInternalTLS}, true]}
   cinder_backend_enabled: {equals: [{get_param: GlanceBackend}, cinder]}
   rbd_backend_enabled: {equals: [{get_param: GlanceBackend}, rbd]}
-  enable_image_conversion:
-    and:
-      - equals: [{get_param: GlanceBackend}, rbd]
-      - equals: [{get_param: NovaEnableRbdBackend}, true]
   use_tls_proxy: {equals : [{get_param: EnableInternalTLS}, true]}
   glance_workers_unset: {equals : [{get_param: GlanceWorkers}, '']}
   service_debug_unset: {equals : [{get_param: GlanceDebug}, '']}
@@ -272,10 +244,8 @@ conditions:
   glance_cache_enabled: {equals : [{get_param: GlanceCacheEnabled}, true]}
   glance_multiple_locations:
     or:
-    - {equals : [{get_param: GlanceShowMultipleLocations}, true]}
     - glance_netapp_nfs_enabled
     - and:
-      # Keep this for compat, but ignore NovaEnableRbdBackend if it's a role param
       - equals:
         - get_param: GlanceBackend
         - rbd
@@ -344,8 +314,8 @@ outputs:
                   - 9292
                   - 13292
             glance::api::authtoken::project_name: 'service'
-            glance::api::authtoken::user_domain_name: 'Default'
-            glance::api::authtoken::project_domain_name: 'Default'
+            glance::keystone::authtoken::user_domain_name: 'Default'
+            glance::keystone::authtoken::project_domain_name: 'Default'
             glance::api::pipeline:
               if:
               - glance_cache_enabled
@@ -359,7 +329,7 @@ outputs:
             glance::api::node_staging_uri: {get_param: GlanceNodeStagingUri}
             glance::api::image_import_plugins:
               if:
-              - enable_image_conversion
+              - rbd_backend_enabled
               - list_concat_unique:
                 - {get_param: GlanceImageImportPlugins}
                 - ['image_conversion']
@@ -392,7 +362,7 @@ outputs:
             glance::api::bind_host:
               if:
               - use_tls_proxy
-              - "%{hiera('localhost_address')}"
+              - 'localhost'
               - str_replace:
                   template:
                     "%{hiera('$NETWORK')}"
@@ -427,13 +397,6 @@ outputs:
               glance::backend::cinder::cinder_store_project_name: 'service'
               glance::backend::cinder::cinder_store_user_name: 'glance'
               glance::backend::cinder::cinder_store_password: {get_param: GlancePassword}
-            - {}
-          -
-            if:
-            - glance_cache_enabled
-            - glance::api::image_cache_dir: {get_param: GlanceImageCacheDir}
-              glance::api::image_cache_max_size: {get_param: GlanceImageCacheMaxSize}
-              glance::api::image_cache_stall_time: {get_param: GlanceImageCacheStallTime}
             - {}
           -
             if:
@@ -538,7 +501,7 @@ outputs:
                   - /var/lib/kolla/config_files/glance_api.json:/var/lib/kolla/config_files/config.json
                   - /var/lib/config-data/puppet-generated/glance_api/:/var/lib/kolla/config_files/src:ro
                   - /etc/ceph:/var/lib/kolla/config_files/src-ceph:ro
-                  - /var/lib/glance:/var/lib/glance:slave
+                  - /var/lib/glance:/var/lib/glance:slave,z
                 -
                   if:
                     - cinder_backend_enabled
@@ -627,21 +590,6 @@ outputs:
                         - internal_tls_enabled
                         - - glance_api_tls_proxy
                         - null
-      external_upgrade_tasks:
-        - when:
-            - step|int == 1
-          tags:
-            - never
-            - system_upgrade_transfer_data
-            - system_upgrade_stop_services
-          block:
-            - name: Stop glance api container
-              import_role:
-                name: tripleo-container-stop
-              vars:
-                tripleo_containers_to_stop:
-                  - glance_api
-                tripleo_delegate_to: "{{ groups['glance_api'] | default([]) }}"
       fast_forward_upgrade_tasks:
         - when:
             - step|int == 0

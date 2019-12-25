@@ -32,7 +32,6 @@
   deprecated_param_extraconfig: 'controllerExtraConfig'
   deprecated_param_flavor: 'OvercloudControlFlavor'
   deprecated_param_image: 'controllerImage'
-  update_serial: 1
   ServicesDefault:
     - OS::TripleO::Services::Aide
     - OS::TripleO::Services::AodhApi
@@ -150,7 +149,6 @@
     - OS::TripleO::Services::OVNController
     - OS::TripleO::Services::Pacemaker
     - OS::TripleO::Services::PankoApi
-    - OS::TripleO::Services::OpenStackClients
     - OS::TripleO::Services::OsloMessagingRpc
     - OS::TripleO::Services::OsloMessagingNotify
     - OS::TripleO::Services::Podman
@@ -161,6 +159,8 @@
     - OS::TripleO::Services::SaharaEngine
     - OS::TripleO::Services::Securetty
     - OS::TripleO::Services::SensuClient
+    - OS::TripleO::Services::SkydiveAgent
+    - OS::TripleO::Services::SkydiveAnalyzer
     - OS::TripleO::Services::Snmp
     - OS::TripleO::Services::Sshd
     - OS::TripleO::Services::SwiftProxy

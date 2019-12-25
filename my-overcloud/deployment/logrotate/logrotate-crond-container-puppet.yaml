@@ -54,28 +54,6 @@ parameters:
     description: Enforces life time (days) of rotated and compressed files.
     type: string
     default: '14'
-  LogrotateDateExt:
-    description: Enable/disable dateext parameter.
-    type: boolean
-    default: false
-  LogrotateDateFormat:
-    description: Configures dateformat strings for containerized logrotate.
-                 This is valid when LogrotateDateExt is true.
-                 The allowed specifiers are only %Y %m %d %H %M %S %V and %s.
-    type: string
-    default: '-%Y%m%d'
-    constraints:
-      - allowed_pattern: '-(%[YmdHMSVs])+$'
-  LogrotateDateYesterday:
-    description: Configures dateyesterday paramter for containerized logrotate.
-                 This is valid when LogrotateDateExt is true.
-    type: boolean
-    default: false
-
-conditions:
-
-  logrotatedateext_is_enabled: {equals: [{get_param: LogrotateDateExt}, true]}
-
 
 resources:
 
@@ -87,23 +65,10 @@ outputs:
     value:
       service_name: logrotate_crond
       config_settings:
-        map_merge:
-          - tripleo::profile::base::logging::logrotate::maxsize: {get_param: LogrotateMaxsize}
-            tripleo::profile::base::logging::logrotate::rotation: {get_param: LogrotateRotationInterval}
-            tripleo::profile::base::logging::logrotate::rotate: {get_param: LogrotateRotate}
-            tripleo::profile::base::logging::logrotate::purge_after_days: {get_param: LogrotatePurgeAfterDays}
-            tripleo::profile::base::logging::logrotate::dateext: {get_param: LogrotateDateExt}
-          - if:
-            - logrotatedateext_is_enabled
-            - tripleo::profile::base::logging::logrotate::dateformat: {get_param: LogrotateDateFormat}
-              tripleo::profile::base::logging::logrotate::dateyesterday: {get_param: LogrotateDateYesterday}
-            - {}
-      host_prep_tasks:
-        - name: allow logrotate to read inside containers
-          seboolean:
-            name: logrotate_read_inside_containers
-            persistent: yes
-            state: yes
+        tripleo::profile::base::logging::logrotate::maxsize: {get_param: LogrotateMaxsize}
+        tripleo::profile::base::logging::logrotate::rotation: {get_param: LogrotateRotationInterval}
+        tripleo::profile::base::logging::logrotate::rotate: {get_param: LogrotateRotate}
+        tripleo::profile::base::logging::logrotate::purge_after_days: {get_param: LogrotatePurgeAfterDays}
       deploy_steps_tasks:
         - name: configure tmpwatch on the host
           when: step|int == 2
@@ -118,7 +83,7 @@ outputs:
                 -X "/var/log/containers/*/*log" \
                 -X "/var/log/containers/*/*/*log" \
                 -X "/var/log/containers/*/*err" \
-                {{ LogrotatePurgeAfterDays|int +1 }}d \
+                {{ LogrotatePurgeAfterDays|int +1 }} \
                 /var/log/containers/ 2>&1 | logger -t container-tmpwatch
           vars:
              LogrotatePurgeAfterDays: {get_param: LogrotatePurgeAfterDays}
@@ -162,18 +127,3 @@ outputs:
           vars:
             containers_to_rm:
               - logrotate_crond
-      external_upgrade_tasks:
-        - when:
-            - step|int == 1
-          tags:
-            - never
-            - system_upgrade_transfer_data
-            - system_upgrade_stop_services
-          block:
-            - name: Stop logrotate container
-              import_role:
-                name: tripleo-container-stop
-              vars:
-                tripleo_containers_to_stop:
-                  - logrotate_crond
-                tripleo_delegate_to: "{{ groups['logrotate_crond'] | default([]) }}"

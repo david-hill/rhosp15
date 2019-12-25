@@ -162,8 +162,10 @@ resources:
       allocation_pools: {get_param: {{network.name}}AllocationPools}
       gateway_ip: {get_param: {{network.name}}InterfaceDefaultRoute}
       host_routes: {get_param: {{network.name}}Routes}
+{%- if network.subnets|default({}) %}
       # All networks have an implicit network segment when created, map this subnet to that segment.
       segment: {get_attr: [{{network.name}}Network, segments, 0, id]}
+{%- endif %}
 
 {% for subnet in network.subnets|default({}) if network.subnets[subnet].enabled|default(true) %}
   {{network.name}}Segment_{{subnet}}:
@@ -171,8 +173,8 @@ resources:
     # NOTE(hjensas): Depends-On here to ensure we always create the base subnet
     #   first. We can only set the segment for existing subnet if there is only
     #   one segment and only one existing subnet on the network.
-{%- if network.subnets[subnet].external_resource_segment_id|default('') %}
-    external_id: {{ network.subnets[subnet].external_resource_segment_id }}
+{%- if subnet.external_resource_segment_id|default('') %}
+    external_id: {{ subnet.external_resource_segment_id }}
 {%- else %}
     depends_on: {{network.name}}Subnet
 {%- endif %}
@@ -184,8 +186,8 @@ resources:
 
   {{network.name}}Subnet_{{subnet}}:
     type: OS::Neutron::Subnet
-{%- if network.subnets[subnet].external_resource_subnet_id|default('') %}
-    external_id: {{ network.subnets[subnet].external_resource_subnet_id }}
+{%- if subnet.external_resource_subnet_id|default('') %}
+    external_id: {{ subnet.external_resource_subnet_id }}
 {%- endif %}
     properties:
 {%- if ":" in network.ip_subnet or network.ipv6 or ipv6_override %}
