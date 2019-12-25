@@ -179,6 +179,7 @@ outputs:
           horizon::listen_ssl: {get_param: EnableInternalTLS}
           horizon::horizon_ca: {get_param: InternalTLSCAFile}
           horizon::customization_module: {get_param: HorizonCustomizationModule}
+          horizon::file_upload_temp_dir: '/var/tmp'
         -
           if:
           - websso_enabled
@@ -267,6 +268,7 @@ outputs:
                   - /var/lib/config-data/puppet-generated/horizon/:/var/lib/kolla/config_files/src:ro
                   - /var/log/containers/horizon:/var/log/horizon:z
                   - /var/log/containers/httpd/horizon:/var/log/httpd:z
+                  - /var/tmp/:/var/tmp/:z
                   - /var/www/:/var/www/:ro
                   -
                     if:
@@ -284,7 +286,7 @@ outputs:
               - ENABLE_CLOUDKITTY=no
               - ENABLE_IRONIC=yes
               - ENABLE_MAGNUM=no
-              - ENABLE_MANILA=no
+              - ENABLE_MANILA=yes
               - ENABLE_HEAT=yes
               # murano depends on heat-dashboard that is not yet installed
               # https://bugs.launchpad.net/tripleo/+bug/1752132
@@ -332,3 +334,18 @@ outputs:
           vars:
             containers_to_rm:
               - horizon
+      external_upgrade_tasks:
+        - when:
+            - step|int == 1
+          tags:
+            - never
+            - system_upgrade_transfer_data
+            - system_upgrade_stop_services
+          block:
+            - name: Stop horizon container
+              import_role:
+                name: tripleo-container-stop
+              vars:
+                tripleo_containers_to_stop:
+                  - horizon
+                tripleo_delegate_to: "{{ groups['horizon'] | default([]) }}"

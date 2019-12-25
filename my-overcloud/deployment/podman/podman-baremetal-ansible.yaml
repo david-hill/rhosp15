@@ -36,9 +36,33 @@ parameters:
     default: {}
     description: Parameters specific to the role
     type: json
+  ContainerImageRegistryLogin:
+    type: boolean
+    default: false
+    description: Flag to enable container registry login actions during the deployment.
+                 Setting this to true will cause login calls to be performed during the
+                 deployment.
+  ContainerImageRegistryCredentials:
+    type: json
+    hidden: true
+    default: {}
+    description: |
+      Mapping of image registry hosts to login credentials. Must be in the following example format
+
+        docker.io:
+          username: pa55word
+        '192.0.2.1:8787':
+          registry_username: password
+  SystemdDropInDependencies:
+    default: true
+    description: tell the container manager (e.g. paunch) to inject
+                 additional ordering dependencies for the systemd
+                 scopes associated to podman containers.
+    type: boolean
 
 conditions:
   insecure_registry_is_empty: {equals : [{get_param: DockerInsecureRegistryAddress}, []]}
+  systemd_drop_in_dependencies_enabled: {get_param: SystemdDropInDependencies}
 
 outputs:
   role_data:
@@ -49,22 +73,35 @@ outputs:
       step_config: ''
       host_prep_tasks:
         - name: Install and configure Podman
-          block:
-          - set_fact:
+          block: &install_and_configure_podman
+          - name: Set login facts
+            set_fact:
               container_registry_insecure_registries:
                 if:
                   - insecure_registry_is_empty
                   - []
                   - {get_param: DockerInsecureRegistryAddress}
+              container_registry_login: {get_param: ContainerImageRegistryLogin}
+              # default that is overwritten by the heat -> dict conversion
+              container_registry_logins: {}
+              container_registry_logins_json: {get_param: ContainerImageRegistryCredentials}
+          - name: Convert logins json to dict
+            set_fact:
+              container_registry_logins: "{{ container_registry_logins_json | from_json }}"
+            when:
+              - container_registry_login | bool
+              - container_registry_logins_json | length) > 0
+
           - name: ensure podman and deps are installed
             package:
               name: podman
               state: latest
-          - name: Remove default cni config for cni0
+          - name: Remove default cni config for cni0 if exists
             copy:
               dest: /etc/cni/net.d/87-podman-bridge.conflist
               content: ''
               force: yes
+            ignore_errors: True
           - name: Delete cni0 interface if exists
             command: ip link delete cni0
             ignore_errors: True
@@ -75,19 +112,60 @@ outputs:
               option: registries
               value: "{{ container_registry_insecure_registries }}"
             when: container_registry_insecure_registries | length > 0
+          - name: Perform container registry login(s)
+            shell: podman login --username=$REGISTRY_USERNAME --password=$REGISTRY_PASSWORD $REGISTRY
+            environment:
+              REGISTRY_USERNAME: "{{ lookup('dict', item.value).key }}"
+              REGISTRY_PASSWORD: "{{ lookup('dict', item.value).value }}"
+              REGISTRY: "{{ item.key }}"
+            loop: "{{ query('dict', container_registry_logins | default({})) }}"
+            when:
+              - container_registry_login | bool
+              - container_registry_logins
+        - if:
+          - systemd_drop_in_dependencies_enabled
+          - - name: Configure paunch to generate systemd drop-in dependencies
+              copy:
+                dest: /etc/sysconfig/podman_drop_in
+                content: |
+                  This file makes paunch generate additional systemd
+                  dependencies for containers that have special
+                  start/stop ordering constraints. It ensures that
+                  those constraints are enforced on reboot/shutdown.
+          - - name: Configure paunch to not generate drop-in dependencies
+              file:
+                path: /etc/sysconfig/podman_drop_in
+                state: absent
+
       service_config_settings: {}
       upgrade_tasks:
-        - name: Install podman packages on upgrade if missing
-          when: step|int == 3
-          package: name=podman state=latest
-        - name: Remove default cni config for cni0
-          copy:
-            dest: /etc/cni/net.d/87-podman-bridge.conflist
-            content: ''
-            force: yes
-        - name: Delete cni0 interface if exists
-          command: ip link delete cni0
-          ignore_errors: True
+        - name: system_upgrade_prepare step 2
+          tags:
+            - never
+            - system_upgrade
+            - system_upgrade_prepare
+          when:
+            - (step | int) == 2
+          block:
+            - name: Check if pcs is present
+              stat:
+                path: /usr/sbin/pcs
+              register: pcs_stat
+            - name: Stop pacemaker cluster before stopping all docker containers
+              pacemaker_cluster: state=offline
+              when: pcs_stat.stat.exists
+            - name: Destroy pacemaker cluster
+              command: /usr/sbin/pcs cluster destroy
+              when: pcs_stat.stat.exists
+            - name: Stop all services by stopping all Docker containers
+              shell: docker ps -q | xargs --no-run-if-empty -n1 docker stop
+
+        # Upgrade tasks for Pacemaker-managed services tasks pull
+        # container images in step 2, we need insecure registries
+        # configured in step 1.
+        - name: Install and configure Podman
+          when: step|int == 1
+          block: *install_and_configure_podman
       post_upgrade_tasks:
         - name: Purge everything about Docker on the host
           when: step|int == 3
@@ -131,3 +209,26 @@ outputs:
                   file:
                     path: /var/lib/docker
                     state: absent
+        - name: Clean podman
+          when:
+            - step|int == 3
+            - container_cli == 'podman'
+          block:
+            - name: Purge Podman
+              block:
+                - name: Clean podman images
+                  shell: podman image prune -a
+                - name: Clean podman volumes
+                  shell: podman volume prune -f
+      post_update_tasks:
+        - name: Clean podman
+          when:
+            - step|int == 3
+            - container_cli == 'podman'
+          block:
+            - name: Purge Podman
+              block:
+                - name: Clean podman images
+                  shell: podman image prune -a
+                - name: Clean podman volumes
+                  shell: podman volume prune -f

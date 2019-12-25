@@ -47,11 +47,6 @@ parameters:
     default: false
     description: Enable IPv6 in Redis
     type: boolean
-  PcmkConfigRestartTimeout:
-    default: 600
-    description: Time in seconds to wait for a pcmk resource to restart when
-                 a config change is detected and the resource is being restarted
-    type: number
   ContainerCli:
     type: string
     default: 'podman'
@@ -69,6 +64,7 @@ conditions:
   puppet_debug_enabled: {get_param: ConfigDebug}
   internal_tls_enabled: {equals: [{get_param: EnableInternalTLS}, true]}
   redis_ipv6: {get_param: RedisIPv6}
+  docker_enabled: {equals: [{get_param: ContainerCli}, 'docker']}
 
 resources:
 
@@ -218,21 +214,12 @@ outputs:
                 user: root
                 environment:
                   - TRIPLEO_MINOR_UPDATE
-                command:
-                  - '/usr/bin/bootstrap_host_exec'
-                  - 'redis'
-                  - str_replace:
-                      template:
-                        'if [ x"${TRIPLEO_MINOR_UPDATE,,}" != x"true" ] && /usr/sbin/pcs resource show redis-bundle; then /usr/sbin/pcs resource restart --wait=PCMKTIMEOUT redis-bundle; echo "redis-bundle restart invoked"; fi'
-                      params:
-                        PCMKTIMEOUT: {get_param: PcmkConfigRestartTimeout}
+                command: /pacemaker_restart_bundle.sh redis-bundle redis
                 image: {get_param: DockerRedisConfigImage}
                 volumes:
                   list_concat:
-                    - {get_attr: [ContainersCommon, volumes]}
-                    -
-                      - /etc/corosync/corosync.conf:/etc/corosync/corosync.conf:ro
-                      - /var/lib/config-data/puppet-generated/redis/:/var/lib/kolla/config_files/src:ro
+                    - {get_attr: [ContainersCommon, pacemaker_restart_volumes]}
+                    - - /var/lib/config-data/puppet-generated/redis/:/var/lib/kolla/config_files/src:ro
             - redis_init_bundle:
                 start_order: 2
                 detach: false
@@ -254,7 +241,10 @@ outputs:
                 volumes:
                   list_concat:
                     - {get_attr: [ContainersCommon, container_puppet_apply_volumes]}
-                    - - /etc/corosync/corosync.conf:/etc/corosync/corosync.conf:ro
+                    - if:
+                      - docker_enabled
+                      - - /etc/corosync/corosync.conf:/etc/corosync/corosync.conf:ro
+                      - null
                 environment:
                   # NOTE: this should force this container to re-run on each
                   # update (scale-out, etc.)
@@ -266,7 +256,7 @@ outputs:
                 - internal_tls_enabled
                 - redis_tls_proxy:
                     start_order: 3
-                    image: *redis_image_pcmklatest
+                    image: {get_param: DockerRedisImage}
                     net: host
                     user: root
                     restart: always
@@ -318,113 +308,80 @@ outputs:
         - name: Redis fetch and retag container image for pacemaker
           when: step|int == 2
           block: &redis_fetch_retag_container_tasks
-            - name: Get docker Redis image
+            - name: Get container redis image
               set_fact:
-                docker_image: {get_param: DockerRedisImage}
-                docker_image_latest: *redis_image_pcmklatest
-            - name: Get previous Redis image id
-              shell: "{{container_cli}} images | awk '/redis.* pcmklatest/{print $3}' | uniq"
-              register: redis_image_id
-            - block:
-                - name: Get a list of container using Redis image
-                  shell: "{{container_cli}} ps -a -q -f 'ancestor={{redis_image_id.stdout}}'"
-                  register: redis_containers_to_destroy
-                # It will be recreated with the delpoy step.
-                - name: Remove any container using the same Redis image
-                  shell: "{{container_cli}} rm -fv {{item}}"
-                  with_items: "{{ redis_containers_to_destroy.stdout_lines }}"
-                - name: Remove previous Redis images
-                  shell: "{{container_cli}} rmi -f {{redis_image_id.stdout}}"
-              when:
-                - redis_image_id.stdout != ''
-            - name: Pull latest Redis images
-              command: "{{container_cli}} pull {{docker_image}}"
-            - name: Retag pcmklatest to latest Redis image
-              import_role:
+                redis_image: {get_param: DockerRedisImage}
+                redis_image_latest: *redis_image_pcmklatest
+            - name: Pull latest redis images
+              command: "{{container_cli}} pull {{redis_image}}"
+            - name: Get previous redis image id
+              shell: "{{container_cli}} inspect --format '{{'{{'}}.Id{{'}}'}}' {{redis_image_latest}}"
+              register: old_redis_image_id
+              failed_when: false
+            - name: Get new redis image id
+              shell: "{{container_cli}} inspect --format '{{'{{'}}.Id{{'}}'}}' {{redis_image}}"
+              register: new_redis_image_id
+            - name: Retag pcmklatest to latest redis image
+              include_role:
                 name: tripleo-container-tag
               vars:
-                container_image: "{{docker_image}}"
-                container_image_latest: "{{docker_image_latest}}"
-            # Got to check that pacemaker_is_active is working fine with bundle.
-            # TODO: pacemaker_is_active resource doesn't support bundle.
+                container_image: "{{redis_image}}"
+                container_image_latest: "{{redis_image_latest}}"
+              when:
+                - old_redis_image_id.stdout != new_redis_image_id.stdout
+            - block:
+                - name: Get a list of container using redis image
+                  shell: "{{container_cli}} ps -a -q -f 'ancestor={{old_redis_image_id.stdout}}'"
+                  register: redis_containers_to_destroy
+                # It will be recreated with the delpoy step.
+                - name: Remove any container using the same redis image
+                  shell: "{{container_cli}} rm -fv {{item}}"
+                  with_items: "{{ redis_containers_to_destroy.stdout_lines }}"
+                - name: Remove previous redis images
+                  shell: "{{container_cli}} rmi -f {{old_redis_image_id.stdout}}"
+              when:
+                - old_redis_image_id.stdout != ''
+                - old_redis_image_id.stdout != new_redis_image_id.stdout
+
       upgrade_tasks:
-        - when: step|int == 0
-          tags: common
+        - name: Prepare switch of redis image name
+          when:
+            - step|int == 0
           block:
-            - name: Get docker redis image
+            - name: Get redis image id currently used by pacemaker
+              shell: "pcs resource config redis-bundle | grep -Eo 'image=[^ ]+' | awk -F= '{print $2;}'"
+              register: redis_image_current_res
+              failed_when: false
+            - name: Image facts for redis
               set_fact:
-                redis_docker_image_latest: *redis_image_pcmklatest
-            - name: Check for redis Kolla configuration
-              stat:
-                path: /var/lib/config-data/puppet-generated/redis
-              register: redis_kolla_config
-            - name: Check if redis is already containerized
-              set_fact:
-                redis_containerized: "{{redis_kolla_config.stat.isdir | default(false)}}"
-            - name: set is_redis_bootstrap_node fact
-              set_fact: is_redis_bootstrap_node={{redis_short_bootstrap_node_name|lower == ansible_hostname|lower}}
+                redis_image_latest: *redis_image_pcmklatest
+                redis_image_current: "{{redis_image_current_res.stdout}}"
             - name: Prepare the switch to new redis container image name in pacemaker
-              when: redis_containerized|bool
               block:
-                - name: Get redis image id currently used by pacemaker
-                  shell: "{{container_cli}} images | awk '/redis.* pcmklatest/{print $3}' | uniq"
-                  register: redis_current_pcmklatest_id
                 - name: Temporarily tag the current redis image id with the upgraded image name
                   import_role:
                     name: tripleo-container-tag
                   vars:
-                    container_image: "{{redis_current_pcmklatest_id.stdout}}"
-                    container_image_latest: "{{redis_docker_image_latest}}"
+                    container_image: "{{redis_image_current}}"
+                    container_image_latest: "{{redis_image_latest}}"
                     pull_image: false
-                  when: redis_current_pcmklatest_id.stdout != ''
-            - name: Check redis-bundle cluster resource status
-              pacemaker_resource:
-                resource: redis-bundle
-                state: show
-                check_mode: false
-              ignore_errors: true
+                  when:
+                    - redis_image_current != ''
+                    - redis_image_current != redis_image_latest
+            - name: Check redis cluster resource status
+              shell: pcs resource config redis-bundle
+              failed_when: false
               register: redis_pcs_res_result
-            - name: Set fact redis_pcs_res
+            - name: Set upgrade redis facts
               set_fact:
-                redis_pcs_res: "{{redis_pcs_res_result|succeeded}}"
-        - name: redis baremetal to container upgrade tasks
-          when:
-            - step|int == 1
-            - not redis_containerized|bool
-          block:
-            - name: Check cluster resource status of redis
-              pacemaker_resource:
-                resource: {get_attr: [RedisBase, role_data, service_name]}
-                state: show
-                check_mode: false
-              ignore_errors: true
-              register: redis_res
-            - when: (is_redis_bootstrap_node) and (redis_res|succeeded)
-              block:
-                - name: Disable the redis cluster resource
-                  pacemaker_resource:
-                    resource: {get_attr: [RedisBase, role_data, service_name]}
-                    state: disable
-                    wait_for_resource: true
-                  register: output
-                  retries: 5
-                  until: output.rc == 0
-                - name: Delete the stopped redis cluster resource.
-                  pacemaker_resource:
-                    resource: {get_attr: [RedisBase, role_data, service_name]}
-                    state: delete
-                    wait_for_resource: true
-                  register: output
-                  retries: 5
-                  until: output.rc == 0
-            - name: Disable redis service
-              service: name=redis enabled=no
+                redis_pcs_res: "{{redis_pcs_res_result.rc == 0}}"
+                is_redis_bootstrap_node: "{{redis_short_bootstrap_node_name|lower == ansible_hostname|lower}}"
         - name: Update redis-bundle pcs resource bundle for new container image
           when:
             - step|int == 1
-            - redis_containerized|bool
-            - is_redis_bootstrap_node
+            - is_redis_bootstrap_node|bool
             - redis_pcs_res|bool
+            - redis_image_current != redis_image_latest
           block:
             - name: Disable the redis cluster resource before container upgrade
               pacemaker_resource:
@@ -449,20 +406,60 @@ outputs:
                     - name: Add a bind mount for logging in the redis bundle
                       command: pcs resource bundle update redis-bundle storage-map add id=redis-log source-dir=/var/log/containers/redis target-dir=/var/log/redis options=rw
             - name: Update the redis bundle to use the new container image name
-              command: "pcs resource bundle update redis-bundle container image={{redis_docker_image_latest}}"
-            - name: Enable the redis cluster resource
-              pacemaker_resource:
-                resource: redis-bundle
-                state: enable
-                wait_for_resource: true
-              register: output
-              retries: 5
-              until: output.rc == 0
+              command: "pcs resource bundle update redis-bundle container image={{redis_image_latest}}"
+        - when:
+            - step|int == 1
+          block:
+            - name: set redis upgrade node facts in a single-node environment
+              set_fact:
+                redis_short_node_names_upgraded: "{{ redis_short_node_names }}"
+                cacheable: no
+              when: groups['redis'] | length <= 1
+            - name: set redis upgrade node facts from the limit option
+              set_fact:
+                redis_short_node_names_upgraded: "{{ redis_short_node_names_upgraded|default([]) + [item.split('.')[0]] }}"
+                cacheable: no
+              when:
+                - groups['redis'] | length > 1
+                - item.split('.')[0] in ansible_limit.split(',')
+              loop: "{{ redis_short_node_names }}"
+
+            - debug:
+                msg: "Prepare redis upgrade for {{ redis_short_node_names_upgraded }}"
+            - fail:
+                msg: >
+                  You can't upgrade redis without staged
+                  upgrade. You need to use the limit option in order
+                  to do so.
+              when: >-
+                redis_short_node_names_upgraded is not defined or
+                redis_short_node_names_upgraded | length == 0
+
+            - name: remove redis init container on upgrade-scaleup to force re-init
+              shell: |
+                if podman inspect redis_init_bundle &> /dev/null; then
+                    podman rm redis_init_bundle
+                fi
+              when: redis_short_node_names_upgraded | length > 1
+            - name: add the redis short name to hiera data for the upgrade.
+              include_role:
+                name: tripleo-upgrade-hiera
+                tasks_from: set.yml
+              vars:
+                tripleo_upgrade_key: redis_short_node_names_override
+                tripleo_upgrade_value: "{{redis_short_node_names_upgraded}}"
+            - name: remove the extra hiera data needed for the upgrade.
+              include_role:
+                name: tripleo-upgrade-hiera
+                tasks_from: remove.yml
+              vars:
+                tripleo_upgrade_key: redis_short_node_names_override
+              when: redis_short_node_names_upgraded | length == redis_short_node_names | length
         - name: Retag the pacemaker image if containerized
           when:
             - step|int == 3
-            - redis_containerized|bool
           block: *redis_fetch_retag_container_tasks
+
       fast_forward_upgrade_tasks:
         - when:
             - step|int == 0

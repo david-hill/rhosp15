@@ -92,6 +92,8 @@ parameters:
       DesignateApiNetwork: {{ _service_nets.get('internal_api', 'ctlplane') }}
       BINDNetwork: {{ _service_nets.get('external', 'ctlplane') }}
       EtcdNetwork: {{ _service_nets.get('internal_api', 'ctlplane') }}
+      # HaproxyNetwork currently only controls the haproxy.stats network binding
+      HaproxyNetwork: ctlplane
       # We special-case the default ResolveNetwork for the Ceph roles
       # for backwards compatibility, all other roles default to internal_api
 {%- for role in roles if role.name.startswith('Ceph') %}
@@ -121,7 +123,7 @@ parameters:
 {%- for network in networks if network.vip|default(false) %}
       {{network.name}}: {{network.name_lower}}_subnet
 {%- endfor %}
-      redis: internal_api_subnet
+      redis: {{ _service_nets.get('internal_api', 'internal_api') }}_subnet
     type: json
 
   # We define mappings to work around names that break when doing the

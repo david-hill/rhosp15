@@ -101,6 +101,13 @@ parameters:
                  If provided, this will create or update a file on the host
                  with the path provided in OctaviaCaKeyFile with the key
                  data.
+  OctaviaServerCertsKeyPassphrase:
+    constraints:
+      - length: { min: 32, max: 32}
+    description: Passphrase for encrypting Amphora Certificates and
+                 Private Keys. Must be exactly 32 characters.
+    type: string
+    hidden: true
   OctaviaCaKeyPassphrase:
     description: CA private key passphrase.
     type: string
@@ -186,7 +193,7 @@ outputs:
                 query:
                   read_default_file: /etc/my.cnf.d/tripleo.cnf
                   read_default_group: tripleo
-            octavia::service_auth::auth_url: {get_param: [EndpointMap, KeystonePublic, uri]}
+            octavia::service_auth::auth_url: {get_param: [EndpointMap, KeystoneV3Internal, uri]}
             octavia::service_auth::auth_type: 'password'
             octavia::service_auth::username: {get_param: OctaviaUserName}
             octavia::service_auth::password: {get_param: OctaviaPassword}
@@ -196,6 +203,7 @@ outputs:
             octavia::service_auth::auth_type: 'password'
             octavia::certificates::ca_certificate: {get_param: OctaviaCaCertFile}
             octavia::certificates::ca_private_key: {get_param: OctaviaCaKeyFile}
+            octavia::certificates::server_certs_key_passphrase: {get_param: OctaviaServerCertsKeyPassphrase}
             octavia::certificates::ca_private_key_passphrase: {get_param: OctaviaCaKeyPassphrase}
             octavia::controller::amp_boot_network_list: {get_param: OctaviaAmphoraNetworkList}
             octavia::controller::amp_flavor_id: {get_param: OctaviaFlavorId}

@@ -15,6 +15,7 @@
   HostnameFormatDefault: '%stackname%-novacomputeiha-%index%'
   RoleParametersDefault:
     TunedProfileName: "virtual-host"
+  update_serial: 25
   ServicesDefault:
     - OS::TripleO::Services::Aide
     - OS::TripleO::Services::AuditD
@@ -54,7 +55,6 @@
     - OS::TripleO::Services::RsyslogSidecar
     - OS::TripleO::Services::Securetty
     - OS::TripleO::Services::SensuClient
-    - OS::TripleO::Services::SkydiveAgent
     - OS::TripleO::Services::Snmp
     - OS::TripleO::Services::Sshd
     - OS::TripleO::Services::Timesync

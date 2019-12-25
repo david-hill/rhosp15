@@ -51,6 +51,24 @@ parameters:
       echo "and passed the upstream name (ocata, pike, queens) of the release as first argument"
       exit 1
     type: string
+  UpgradeLeappEnabled:
+    description: Use Leapp for operating system upgrade
+    type: boolean
+    default: true
+  UpgradeLeappDebug:
+    description: Print debugging output when running Leapp
+    type: boolean
+    default: true
+  UpgradeLeappDevelSkip:
+    description: |
+      Skip Leapp checks by setting env variables when running Leapp in
+      development/testing. For example, LEAPP_DEVEL_SKIP_RHSM=1.
+    type: string
+    default: ''
+  UpgradeLeappRebootTimeout:
+    description: Timeout (seconds) for the OS upgrade phase via Leapp
+    type: number
+    default: 1800
   UpgradeInitCommand:
     type: string
     description: |
@@ -76,6 +94,68 @@ outputs:
       step_config: |
         include ::tripleo::packages
       upgrade_tasks:
+        - name: set leapp facts
+          tags: always
+          set_fact:
+            upgrade_leapp_enabled: {get_param: UpgradeLeappEnabled}
+            upgrade_leapp_debug: {get_param: UpgradeLeappDebug}
+            upgrade_leapp_devel_skip: {get_param: UpgradeLeappDevelSkip}
+            upgrade_leapp_reboot_timeout: {get_param: UpgradeLeappRebootTimeout}
+
+        - name: system_upgrade_prepare step 3
+          tags:
+            - never
+            - system_upgrade
+            - system_upgrade_prepare
+          when: step|int == 3
+          block:
+            - name: remove all OpenStack packages
+              shell: |
+                yum -y remove *el7ost* -- \
+                  -*openvswitch* \
+                  -python2-babel \
+                  -python2-dateutil \
+                  -python2-ipaddress \
+                  -python2-jinja2 \
+                  -python2-markupsafe \
+                  -python2-six
+              when: upgrade_leapp_enabled
+            - name: install leapp
+              package:
+                name: leapp
+                state: latest
+              when: upgrade_leapp_enabled
+
+        - name: system_upgrade_prepare step 4
+          tags:
+            - never
+            - system_upgrade
+            - system_upgrade_prepare
+          when: step|int == 4
+          block:
+            - name: run leapp upgrade (download packages)
+              shell: >
+                {% if upgrade_leapp_devel_skip|default(false) %}{{ upgrade_leapp_devel_skip }}{% endif %}
+                leapp upgrade
+                {% if upgrade_leapp_debug|default(true) %}--debug{% endif %}
+              when: upgrade_leapp_enabled
+
+        - name: system_upgrade_run step 4
+          tags:
+            - never
+            - system_upgrade
+            - system_upgrade_run
+            # In case someone needs to re-run system_upgrade_run post-tasks
+            # but doesn't want to reboot, they can run with
+            # `--skip-tags system_upgrade_reboot`.
+            - system_upgrade_reboot
+          when: step|int == 4
+          block:
+            - name: reboot to perform the upgrade
+              reboot:
+                reboot_timeout: "{{upgrade_leapp_reboot_timeout}}"
+              when: upgrade_leapp_enabled
+
         - name: Package and repo update tasks
           when: step|int == 0
           block:
@@ -92,13 +172,20 @@ outputs:
                   - ''
                   - - "#!/bin/bash\n\n"
                     - {get_param: UpgradeInitCommonCommand}
-            - name: Check yum for rpm-python present
-              package: "name=rpm-python state=present"
-              register: rpm_python_check
-            - name: Fail when rpm-python wasn't present
-              fail: msg="rpm-python package was not present before this run! Check environment before re-running"
-              when:
-                - rpm_python_check.changed != false
+            - name: Ensure TripleO prerequisite packages are installed
+              package:
+                name:
+                  - jq
+                  - lvm2
+                  - net-snmp
+                  - openstack-selinux
+                  - os-net-config
+                  - pacemaker
+                  - pcs
+                  - puppet-tripleo
+                  - python3-heat-agent*
+                state: present
+              when: ansible_distribution_major_version == '8'
         # With the layered product packaging, the key package is rhosp-openvswitch. It depends on
         # a openvswitch package that includes the version as part of the name (e.g openvswitch2.10).
         # This requires some additional special handling:
@@ -232,6 +319,11 @@ outputs:
             - run_ovs_update|default(true)
             - ovs_packaging_issue|default(false)|succeeded
             - ovs_need_upgrade.stdout|default('')
+        - name: Install libibverbs (https://bugs.launchpad.net/tripleo/+bug/1817743)
+          when: step|int == 2
+          package:
+            name: libibverbs
+            state: installed
         # The openvswitch package disables the systemd service on install. When installing
         # the layered product we prevent the service from being killed, but it doesn't
         # do anything to prevent the systemd service from being removed and it is not
@@ -263,9 +355,14 @@ outputs:
             - step|int == 3
             - os_net_config_need_upgrade.stdout
             - os_net_config_has_config.rc == 0
+        # Exclude ansible until https://github.com/ansible/ansible/issues/56636
+        # is available
         - name: Update all packages
           when: step|int == 3
-          package: name=* state=latest
+          yum:
+            name: '*'
+            state: latest
+            exclude: ansible
       external_upgrade_tasks:
         - name: Clean up upgrade artifacts
           when: step|int == 1
@@ -289,9 +386,14 @@ outputs:
         - name: Exit if existing yum process
           fail: msg="ERROR existing yum.pid detected - can't continue! Please ensure there is no other package update process for the duration of the minor update worfklow. Exiting."
           when: (step|int == 0 or step|int == 3) and yum_pid_file.stat.exists
+        # Exclude ansible until https://github.com/ansible/ansible/issues/56636
+        # is available
         - name: Update all packages
-          package: name=* state=latest
-          when: step == "3"
+          when: step|int == 3
+          yum:
+            name: '*'
+            state: latest
+            exclude: ansible
         # This is failsafe unless openvswitch package does something to the systemd service state.
         - name: Ensure openvswitch is running after update
           when: step|int == 3

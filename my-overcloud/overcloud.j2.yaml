@@ -201,6 +201,15 @@ parameters:
       doing an update which requires removal of specific resources.
       Example format ComputeRemovalPolicies: [{'resource_list': ['0']}]
 
+  {{role.name}}RemovalPoliciesMode:
+    default: append
+    type: string
+    description: >
+      How to handle change to RemovalPolicies for {{role.name}}
+      ResourceGroup when doing an update. Default mode 'append' will
+      append to the existing blacklist and 'update' would replace
+      the blacklist.
+
   {{role.name}}SchedulerHints:
     type: json
     description: Optional scheduler hints to pass to nova
@@ -654,6 +663,7 @@ resources:
     properties:
       count: {get_param: {{role.name}}Count}
       removal_policies: {get_param: {{role.name}}RemovalPolicies}
+      removal_policies_mode: {get_param: {{role.name}}RemovalPoliciesMode}
       resource_def:
         type: OS::TripleO::{{role.name}}
         properties:
@@ -1036,15 +1046,6 @@ resources:
       {{role.name}}Count: {get_param: {{role.name}}Count}
 {%- endfor %}
 
-  ServerOsCollectConfigData:
-    type: OS::Heat::Value
-    properties:
-      type: json
-      value:
-{%- for role in roles %}
-        {{role.name}}: {get_attr: [{{role.name}}, attributes, os_collect_config]}
-{%- endfor %}
-
   DeployedServerEnvironment:
     type: OS::TripleO::DeployedServerEnvironment
     properties:
@@ -1062,20 +1063,6 @@ resources:
 {%- for role in roles %}
               - {get_attr: [{{role.name}}, deployed_server_port_map]}
 {%- endfor %}
-      DeployedServerDeploymentSwiftDataMap:
-        map_merge:
-          list_concat:
-{%- for role in roles %}
-              - {get_attr: [{{role.name}}, deployed_server_deployment_swift_data_map]}
-{%- endfor %}
-      DefaultRouteIp:
-        str_split:
-          - ':'
-          - str_split:
-            - '/'
-            - {get_attr: [ServerOsCollectConfigData, value, {{primary_role_name}}, '0', request, metadata_url]}
-            - 2
-          - 0
 
 outputs:
   ManagedEndpoints:
@@ -1151,9 +1138,6 @@ outputs:
 {%- for role in roles %}
       {{role.name}}: {{role.tags|default([])}}
 {%- endfor %}
-  ServerOsCollectConfigData:
-    description: The os-collect-config configuration associated with each server resource
-    value: {get_attr: [ServerOsCollectConfigData, value]}
   VipMap:
     description: Mapping of each network to VIP addresses. Also includes the Redis VIP.
     value:

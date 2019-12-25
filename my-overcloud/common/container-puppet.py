@@ -173,7 +173,14 @@ def rm_container(name):
             log.debug(cmd_stderr)
 
     log.info('Removing container: %s' % name)
-    subproc = subprocess.Popen([cli_cmd, 'rm', name],
+    rm_cli_cmd = [cli_cmd, 'rm']
+    # --storage is used as a mitigation of
+    # https://github.com/containers/libpod/issues/3906
+    # Also look https://bugzilla.redhat.com/show_bug.cgi?id=1747885
+    if container_cli == 'podman':
+        rm_cli_cmd.extend(['--storage'])
+    rm_cli_cmd.append(name)
+    subproc = subprocess.Popen(rm_cli_cmd,
                                stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE,
                                universal_newlines=True)
@@ -300,13 +307,12 @@ if not os.path.exists(sh_script):
         /usr/bin/puppet apply --summarize \
                 --detailed-exitcodes \
                 --color=false \
-                --logdest syslog \
-                --logdest console \
                 --modulepath=/etc/puppet/modules:/usr/share/openstack-puppet/modules \
                 $TAGS \
                 $CHECK_MODE \
-                /etc/config.pp
-        rc=$?
+                /etc/config.pp \
+                2>&1 | logger -s -t puppet-user
+        rc=${PIPESTATUS[0]}
         set -e
         if [ $rc -ne 2 -a $rc -ne 0 ]; then
             exit $rc
@@ -337,8 +343,17 @@ if not os.path.exists(sh_script):
                     exclude_files+=" --exclude=$p"
                 fi
             done
-            rsync -a -R --delay-updates --delete-after $exclude_files $rsync_srcs /var/lib/config-data/${NAME}
 
+            # Exclude read-only mounted directories/files which we do not want
+            # to copy or delete.
+            ro_files="/etc/puppetlabs/ /opt/puppetlabs/"
+            for ro in $ro_files; do
+                if [ -e "$ro" ]; then
+                    exclude_files+=" --exclude=$ro"
+                fi
+            done
+
+            rsync -a -R --delay-updates --delete-after $exclude_files $rsync_srcs /var/lib/config-data/${NAME}
 
             # Also make a copy of files modified during puppet run
             # This is useful for debugging
@@ -419,6 +434,9 @@ def mp_puppet_config(*args):
                 '--volume', '/etc/pki/tls/certs/ca-bundle.trust.crt:/etc/pki/tls/certs/ca-bundle.trust.crt:ro',
                 '--volume', '/etc/pki/tls/cert.pem:/etc/pki/tls/cert.pem:ro',
                 '--volume', '%s:/var/lib/config-data/:rw' % config_volume_prefix,
+                # facter caching
+                '--volume', '/var/lib/container-puppet/puppetlabs/facter.conf:/etc/puppetlabs/facter/facter.conf:ro',
+                '--volume', '/var/lib/container-puppet/puppetlabs/:/opt/puppetlabs/:ro',
                 # Syslog socket for puppet logs
                 '--volume', '/dev/log:/dev/log:rw']
         if privileged:

@@ -152,6 +152,9 @@ parameter_defaults:
   NeutronVniRanges: '10:100'
   NeutronEnableDVR: false
   NeutronPortQuota: '-1'
+  # This allows MTU > 1500 for the overcloud if local_mtu is set to 1500
+  # See LP#1826729
+  TenantNetPhysnetMtu: 0
   SwiftCorsAllowedOrigin: '*'
   SwiftReplicas: 1
   SwiftWorkers: 2
@@ -210,6 +213,7 @@ parameter_defaults:
     ironic::api::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
     ironic::inspector::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
     keystone::cache_memcache_servers: "%{hiera('memcached::listen_ip')}:11211"
+    keystone::cache_backend: "dogpile.cache.memcached"
     manila::keystone::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
     manila::keystone::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"
     mistral::keystone::authtoken::memcached_servers: "%{hiera('memcached::listen_ip')}:11211"

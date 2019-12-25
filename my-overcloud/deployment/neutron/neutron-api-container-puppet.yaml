@@ -244,7 +244,7 @@ outputs:
             neutron::bind_host:
               if:
               - use_tls_proxy
-              - 'localhost'
+              - "%{hiera('localhost_address')}"
               - str_replace:
                   template:
                     "%{hiera('$NETWORK')}"
@@ -297,6 +297,16 @@ outputs:
           neutron::db::mysql::allowed_hosts:
             - '%'
             - "%{hiera('mysql_bind_host')}"
+        placement:
+          neutron::server::placement::www_authenticate_uri: {get_param: [EndpointMap, KeystoneInternal, uri_no_suffix]}
+          neutron::server::placement::project_domain_name: 'Default'
+          neutron::server::placement::project_name: 'service'
+          neutron::server::placement::user_domain_name: 'Default'
+          neutron::server::placement::password: {get_param: NovaPassword}
+          neutron::server::placement::username: nova
+          neutron::server::placement::auth_url: {get_param: [EndpointMap, KeystoneInternal, uri_no_suffix]}
+          neutron::server::placement::auth_type: 'password'
+          neutron::server::placement::region_name: {get_param: KeystoneRegion}
       # BEGIN DOCKER SETTINGS
       puppet_config:
         config_volume: neutron
@@ -412,6 +422,21 @@ outputs:
                         - internal_tls_enabled
                         - - neutron_server_tls_proxy
                         - null
+      external_upgrade_tasks:
+        - when:
+            - step|int == 1
+          tags:
+            - never
+            - system_upgrade_transfer_data
+            - system_upgrade_stop_services
+          block:
+            - name: Stop neutron api container
+              import_role:
+                name: tripleo-container-stop
+              vars:
+                tripleo_containers_to_stop:
+                  - neutron_api
+                tripleo_delegate_to: "{{ groups['neutron_api'] | default([]) }}"
       fast_forward_upgrade_tasks:
         - when:
             - step|int == 0

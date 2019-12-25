@@ -5,6 +5,9 @@ resource_registry:
 #  OS::TripleO::ObjectStorage::Net::SoftwareConfig: /home/stack/rhosp15/my-overcloud/network/config/single-nic-vlans/swift-storage.yaml
   OS::TripleO::CephStorage::Net::SoftwareConfig: /home/stack/rhosp15/my-overcloud/network/config/single-nic-vlans/ceph-storage.yaml
   OS::TripleO::NodeUserData: /home/stack/rhosp15/my-overcloud/swap.yaml
+  OS::TripleO::Services::Fluentd: /home/stack/rhosp15/my-overcloud/deployment/deprecated/logging/fluentd-container-puppet.yaml
+  OS::TripleO::Services::SensuClient: /home/stack/rhosp15/my-overcloud/deployment/deprecated/monitoring/sensu-client-container-puppet.yaml
+  OS::TripleO::Services::Collectd: /home/stack/rhosp15/my-overcloud/deployment/metrics/collectd-container-puppet.yaml
 parameter_defaults:
   # Customize all these values to match the local environment
   InternalApiNetCidr: 172.17.0.0/24
@@ -39,3 +42,31 @@ parameter_defaults:
   SELinuxMode: permissive
   PythonInterpreter: /usr/bin/python3
   NovaComputeLibvirtType: qemu
+  LoggingServers:
+    - host: log0.example.com
+      port: 24224
+    - host: log1.example.com
+      port: 24224
+  MonitoringRabbitHost: 10.10.10.10
+  MonitoringRabbitPort: 5672
+  MonitoringRabbitUserName: sensu
+  MonitoringRabbitPassword: sensu
+  MonitoringRabbitUseSSL: true
+  MonitoringRabbitVhost: "/sensu"
+  SensuClientCustomConfig:
+    api:
+      warning: 10
+      critical: 20
+  CollectdDefaultPlugins:
+    - disk
+    - interface
+    - load
+    - memory
+    - processes
+    - tcpconns
+  CollectdExtraPlugins:
+    - disk
+    - df
+  CollectdServer: collectd0.example.com
+  CollectdServerPort: 25826
+  CollectdSecurityLevel: None
