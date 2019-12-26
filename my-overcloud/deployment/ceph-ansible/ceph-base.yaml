@@ -141,6 +141,22 @@ parameters:
     description: default minimum replication for RBD copies
     type: number
     default: 3
+  ManilaCephFSDataPoolName:
+    default: manila_data
+    type: string
+  ManilaCephFSMetadataPoolName:
+    default: manila_metadata
+    type: string
+  # DEPRECATED options for compatibility with older versions
+  ManilaCephFSDataPoolPGNum:
+    default: 128
+    type: number
+  ManilaCephFSMetadataPoolPGNum:
+    default: 128
+    type: number
+  ManilaCephFSShareBackendName:
+    default: cephfs
+    type: string
   ManilaCephFSCephFSAuthId:
     default: manila
     type: string
@@ -186,8 +202,32 @@ parameters:
                  config-download, e.g. the mistral user in the mistral-executor
                  container is able to read/write to /var/lib/mistral/ceph_fetch
     type: string
+  ContainerImageRegistryCredentials:
+    type: json
+    hidden: true
+    default: {}
+    description: |
+      Mapping of image registry hosts to login credentials. Must be in the following example format
+
+        docker.io:
+          username: pa55word
+        '192.0.2.1:8787':
+          registry_username: password
+  EnableRhcs4Beta:
+    default: False
+    description: Temporary downstream only parameter indicating RHCS4 beta use
+    type: boolean
+
+parameter_groups:
+- label: deprecated
+  description: Do not use deprecated params, they will be removed.
+  parameters:
+  - ManilaCephFSDataPoolPGNum
+  - ManilaCephFSMetadataPoolPGNum
 
 conditions:
+  deprecated_data_pool_pgnum: {not: {equals: [{get_param: ManilaCephFSDataPoolPGNum}, 128]}}
+  deprecated_metadata_pool_pgnum: {not: {equals: [{get_param: ManilaCephFSMetadataPoolPGNum}, 128]}}
   custom_registry_host:
     yaql:
       data: {get_param: DockerCephDaemonImage}
@@ -199,6 +239,26 @@ conditions:
       equals:
         - {get_param: CephAnsibleSkipTags}
         - ''
+  ceph_authenticated_registry:
+      and:
+      - not:
+          yaql:
+            data:
+              cred: {get_param: ContainerImageRegistryCredentials}
+              ns:
+               yaql:
+                expression: let(location => $.data.rightSplit(':', 1)[0]) -> regex('(?:https?://)?(.*?)/(.*)').split($location)[1]
+                data: {get_param: DockerCephDaemonImage}
+            expression: let(c => $.data.cred) -> $c.get($.data.ns, {}).keys().last(default => "").isEmpty()
+      - not:
+          yaql:
+            data:
+              cred: {get_param: ContainerImageRegistryCredentials}
+              ns:
+               yaql:
+                expression: let(location => $.data.rightSplit(':', 1)[0]) -> regex('(?:https?://)?(.*?)/(.*)').split($location)[1]
+                data: {get_param: DockerCephDaemonImage}
+            expression: let(c => $.data.cred) -> $c.get($.data.ns, {}).values().last(default => "").isEmpty()
 
 resources:
   DockerImageUrlParts:
@@ -236,9 +296,27 @@ resources:
           fsid: { get_param: CephClusterFSID }
           cluster: { get_param: CephClusterName }
           docker: true
+          configure_firewall: false
           ceph_docker_registry: {get_attr: [DockerImageUrlParts, value, host]}
           ceph_docker_image: {get_attr: [DockerImageUrlParts, value, image]}
           ceph_docker_image_tag: {get_attr: [DockerImageUrlParts, value, image_tag]}
+          ceph_docker_registry_auth:
+            if:
+              - ceph_authenticated_registry
+              - true
+              - false
+          ceph_docker_registry_username:
+            yaql:
+              data:
+                cred: {get_param: ContainerImageRegistryCredentials}
+                ns: {get_attr: [DockerImageUrlParts, value, host]}
+              expression: let(c => $.data.cred) -> $c.get($.data.ns, {}).keys().last(default => "")
+          ceph_docker_registry_password:
+            yaql:
+              data:
+                cred: {get_param: ContainerImageRegistryCredentials}
+                ns: {get_attr: [DockerImageUrlParts, value, host]}
+              expression: let(c => $.data.cred) -> $c.get($.data.ns, {}).values().last(default => "")
           containerized_deployment: true
           public_network:
             list_join:
@@ -355,7 +433,7 @@ resources:
                   osd_pool_default_pgp_num: {get_param: CephPoolDefaultPgNum}
                   rgw_keystone_api_version: 3
                   rgw_keystone_url: {get_param: [EndpointMap, KeystoneInternal, uri_no_suffix]}
-                  rgw_keystone_accepted_roles: 'Member, admin'
+                  rgw_keystone_accepted_roles: 'member, Member, admin'
                   rgw_keystone_accepted_admin_roles: ResellerAdmin
                   rgw_keystone_admin_domain: default
                   rgw_keystone_admin_project: service
@@ -365,6 +443,7 @@ resources:
                   rgw_keystone_revocation_interval: '0'
                   rgw_s3_auth_use_keystone: 'true'
                   rgw_swift_versioning_enabled: 'true'
+                  rgw_swift_account_in_url: 'true'
                 - {get_param: CephConfigOverrides}
           ntp_service_enabled: false
           generate_fsid: false
@@ -373,6 +452,28 @@ resources:
             - {get_param: CephIPv6}
             - ipv6
             - ipv4
+          dashboard_enabled: false
+          # Prefer CephPoolDefaultPgNum unless the (deprecated)
+          # params value is different from their default.
+          cephfs_data_pool:
+            application: cephfs
+            name: {get_param: ManilaCephFSDataPoolName}
+            pg_num:
+              if:
+              - deprecated_data_pool_pgnum
+              - {get_param: ManilaCephFSDataPoolPGNum}
+              - {get_param: CephPoolDefaultPgNum}
+            rule_name: replicated_rule
+          cephfs_metadata_pool:
+            application: cephfs
+            name: {get_param: ManilaCephFSMetadataPoolName}
+            pg_num:
+              if:
+              - deprecated_metadata_pool_pgnum
+              - {get_param: ManilaCephFSMetadataPoolPGNum}
+              - {get_param: CephPoolDefaultPgNum}
+            rule_name: replicated_rule
+          cephfs: {get_param: ManilaCephFSShareBackendName}
 
 outputs:
   role_data:
@@ -391,6 +492,17 @@ outputs:
           when: step == '1'
           tags: ceph
           block:
+            - name: set fact for EnableRhcs4Beta
+              set_fact:
+                enable_rhcs4_beta: {get_param: EnableRhcs4Beta}
+            - name: fail unless EnableRhcs4Beta is enabled
+              fail:
+                msg: >
+                   Only RHCS4 may be used with this version of OpenStack
+                   but RHCS4 is in Beta. If you wish to use Ceph you may
+                   only due so as part of the unsupported RHCS4 Beta by
+                   setting the EnableRhcs4Beta parameter to true.
+              when: not enable_rhcs4_beta
             - name: set blacklisted_hostnames
               set_fact:
                 blacklisted_hostnames: {get_param: DeploymentServerBlacklist}
@@ -502,6 +614,9 @@ outputs:
                   - ANSIBLE_SSH_CONTROL_PATH_DIR="{{playbook_dir}}/ceph-ansible/"
                   - ANSIBLE_CONFIG="{{playbook_dir}}/ansible.cfg"
                   - ANSIBLE_REMOTE_TEMP=/tmp/nodes_uuid_tmp
+                  - yaql:
+                      data: {get_param: CephAnsibleEnvironmentVariables}
+                      expression: $.data.items().select($[0] + '=' + $[1]).join(' ')
                   - ansible-playbook
                   - '{% if ceph_ansible_private_key_file is defined %}--private-key {{ceph_ansible_private_key_file}}{% endif %}'
                   - '-i'
@@ -518,7 +633,7 @@ outputs:
                   {%- if ceph_ansible_playbooks_param != ['default'] -%}
                     {{ ceph_ansible_playbooks_param }}
                   {%- else -%}
-                    {{ ceph_ansible_playbooks_default|default(['/usr/share/ceph-ansible/site-docker.yml.sample']) }}
+                    {{ ceph_ansible_playbooks_default|default(['/usr/share/ceph-ansible/site-container.yml.sample']) }}
                   {%- endif -%}
             - name: was path for local ceph-ansible fetch directory backups set?
               set_fact:
@@ -585,6 +700,7 @@ outputs:
                   - ' '
                   - - ANSIBLE_ACTION_PLUGINS=/usr/share/ceph-ansible/plugins/actions/
                     - ANSIBLE_CALLBACK_PLUGINS=/usr/share/ceph-ansible/plugins/callback/
+                    - ANSIBLE_FILTER_PLUGINS=/usr/share/ceph-ansible/plugins/filter/
                     - ANSIBLE_ROLES_PATH=/usr/share/ceph-ansible/roles/
                     - ANSIBLE_LOG_PATH="{{playbook_dir}}/ceph-ansible/ceph_ansible_command.log"
                     - ANSIBLE_LIBRARY=/usr/share/ceph-ansible/library/
@@ -610,6 +726,7 @@ outputs:
                     - '{{playbook_dir}}/ceph-ansible/inventory.yml'
                     - '--extra-vars'
                     - '@{{playbook_dir}}/ceph-ansible/extra_vars.yml'
+                    - '{% if ceph_ansible_limit is defined and ceph_ansible_limit|length > 0 %}--limit {{ ceph_ansible_limit }}{% endif %}'
             - name: run ceph-ansible (immediate log at {{playbook_dir}}/ceph-ansible/ceph_ansible_command.log)
               # needs become to be able to read the ssh private key
               become: true
@@ -684,6 +801,16 @@ outputs:
               set_fact:
                 ceph_ansible_playbooks_default: ["/usr/share/ceph-ansible/infrastructure-playbooks/rolling_update.yml"]
       external_upgrade_tasks:
+        - when: step|int == 0
+          tags: ceph-systemd
+          block:
+            - name: stop if _limit is unset
+              fail:
+                msg: The ceph-ansible systemd units migration playbook limit is not set; please use -e ceph_ansible_limit=##nodename##
+              when: (ceph_ansible_limit is not defined) or (ceph_ansible_limit|length == 0)
+            - name: set ceph_ansible_playbooks_default
+              set_fact:
+                ceph_ansible_playbooks_default: ["/usr/share/ceph-ansible/infrastructure-playbooks/docker-to-podman.yml"]
         - when: step|int == 0
           tags: ceph
           block:

@@ -11,7 +11,7 @@ parameters:
     description: The container image to use for the nova_libvirt config_volume
     type: string
   DockerNovaComputeUlimit:
-    default: ['nofile=131072']
+    default: ['nofile=131072', 'memlock=67108864']
     description: ulimit for Nova Compute Container
     type: comma_delimited_list
   NovaComputeLoggingSource:
@@ -124,8 +124,10 @@ parameters:
     type: boolean
   NovaEnableRbdBackend:
     default: false
-    description: Whether to enable or not the Rbd backend for Nova
+    description: Whether to enable the Rbd backend for Nova ephemeral storage.
     type: boolean
+    tags:
+      - role_specific
   NovaComputeLibvirtVifDriver:
     default: ''
     description: Libvirt VIF driver configuration for the network
@@ -143,6 +145,8 @@ parameters:
       pci_passthrough_whitelist configuration
     type: json
     default: ''
+    tags:
+      - role_specific
   NovaVcpuPinSet:
     description: >
       A list or range of physical CPU cores to reserve for virtual machine
@@ -250,7 +254,7 @@ parameters:
   NovaHWMachineType:
     description: >
       To specify a default machine type per host architecture.
-    default: 'x86_64=pc-q35-rhel8.0.0,aarch64=virt-rhel8.0.0,ppc64=pseries-rhel8.0.0,ppc64le=pseries-rhel8.0.0'
+    default: 'x86_64=pc-i440fx-rhel7.6.0,aarch64=virt-rhel7.6.0,ppc64=pseries-rhel7.6.0,ppc64le=pseries-rhel7.6.0'
     type: string
     tags:
       - role_specific
@@ -279,6 +283,29 @@ parameters:
     type: string
     default: 'regionOne'
     description: Keystone region for endpoint
+  NovaLibvirtNumPciePorts:
+    description: >
+      Set `num_pcie_ports` to specify the number of PCIe ports an
+      instance will get.
+      Libvirt allows a custom number of PCIe ports (pcie-root-port controllers) a
+      target instance will get. Some will be used by default, rest will be available
+      for hotplug use.
+    default: 16
+    type: number
+    tags:
+      - role_specific
+  NovaLibvirtMemStatsPeriodSeconds:
+    description: >
+      A number of seconds to memory usage statistics period, zero or negative
+      value mean to disable memory usage statistics.
+    default: 10
+    type: number
+    tags:
+      - role_specific
+  NovaLiveMigrationWaitForVIFPlug:
+    description: Whether to wait for `network-vif-plugged` events before starting guest transfer.
+    default: true
+    type: boolean
 
 resources:
 
@@ -337,9 +364,14 @@ resources:
               compute_enable_ksm: NovaComputeEnableKsm
               nova::compute::rbd::libvirt_images_rbd_pool: NovaRbdPoolName
               tripleo::profile::base::nova::compute::nova_nfs_enabled: NovaNfsEnabled
+              nfs_backend_enable: NovaNfsEnabled
               nfs_share: NovaNfsShare
               nfs_options: NovaNfsOptions
               nfs_vers: NovaNfsVersion
+              nova::compute::libvirt::num_pcie_ports: NovaLibvirtNumPciePorts
+              nova::compute::libvirt::mem_stats_period_seconds: NovaLibvirtMemStatsPeriodSeconds
+              resume_guests_state_on_host_boot: NovaResumeGuestsStateOnHostBoot
+              nova::compute::rbd::ephemeral_storage: NovaEnableRbdBackend
             - values: {get_param: [RoleParameters]}
           - values:
               NovaVcpuPinSet: {get_param: NovaVcpuPinSet}
@@ -359,6 +391,9 @@ resources:
               NovaNfsShare: {get_param: NovaNfsShare}
               NovaNfsOptions: {get_param: NovaNfsOptions}
               NovaNfsVersion: {get_param: NovaNfsVersion}
+              NovaLibvirtNumPciePorts: {get_param: NovaLibvirtNumPciePorts}
+              NovaLibvirtMemStatsPeriodSeconds: {get_param: NovaLibvirtMemStatsPeriodSeconds}
+              NovaEnableRbdBackend: {get_param: NovaEnableRbdBackend}
 
 conditions:
   enable_instance_ha: {equals: [{get_param: EnableInstanceHA}, true]}
@@ -369,7 +404,10 @@ conditions:
         - equals: [{get_param: NovaNfsEnabled}, true]
         - equals: [{get_param: [RoleParameters, NovaNfsEnabled]}, '']
       - equals: [{get_param: [RoleParameters, NovaNfsEnabled]}, true]
-      - equals: [{get_param: NovaEnableRbdBackend}, true]
+      - equals: [{get_param: [RoleParameters, NovaEnableRbdBackend]}, true]
+      - and:
+        - equals: [{get_param: [RoleParameters, NovaEnableRbdBackend]}, '']
+        - equals: [{get_param: NovaEnableRbdBackend}, true]
 
   libvirt_file_backed_memory_enabled:
     not:
@@ -380,6 +418,13 @@ conditions:
       -  equals: [{get_param: [RoleParameters, NovaLibvirtFileBackedMemory]}, 0]
 
   is_not_additional_cell: {equals: [{get_param: NovaAdditionalCell}, false]}
+
+  nova_nfs_enabled:
+    or:
+      - and:
+        - equals: [{get_param: NovaNfsEnabled}, true]
+        - equals: [{get_param: [RoleParameters, NovaNfsEnabled]}, '']
+      - equals: [{get_param: [RoleParameters, NovaNfsEnabled]}, true]
 
 outputs:
   role_data:
@@ -433,7 +478,7 @@ outputs:
             nova::compute::instance_usage_audit: true
             nova::compute::instance_usage_audit_period: 'hour'
             nova::compute::consecutive_build_service_disable_threshold: {get_param: NovaAutoDisabling}
-            nova::compute::rbd::ephemeral_storage: {get_param: NovaEnableRbdBackend}
+            nova::compute::live_migration_wait_for_vif_plug: {get_param: NovaLiveMigrationWaitForVIFPlug}
             # TUNNELLED mode provides a security improvement for migration, but
             # can't be used in combination with block migration. So we only enable it
             # when shared storage is available (Ceph RDB is currently the only option).
@@ -532,6 +577,8 @@ outputs:
           - {get_attr: [ContainersCommon, container_config_scripts]}
           - {get_attr: [NovaComputeCommon, container_config_scripts]}
       docker_config:
+        step_2:
+          get_attr: [NovaLogging, docker_config, step_2]
         step_3:
           nova_statedir_owner:
             image: &nova_compute_image {get_param: DockerNovaComputeImage}
@@ -540,8 +587,16 @@ outputs:
             privileged: false
             detach: false
             volumes:
-              - /var/lib/nova:/var/lib/nova:shared,z
-              - /var/lib/container-config-scripts/:/container-config-scripts/:z
+              list_concat:
+                # podman fails to relable if nova_nfs_enabled where we have
+                # the nfs share mounted to /var/lib/nova/instances
+                -
+                  if:
+                  - nova_nfs_enabled
+                  - - /var/lib/nova:/var/lib/nova:shared
+                  - - /var/lib/nova:/var/lib/nova:shared,z
+                -
+                  - /var/lib/container-config-scripts/:/container-config-scripts/:z
             command: "/container-config-scripts/pyshim.sh /container-config-scripts/nova_statedir_ownership.py"
             environment:
               # NOTE: this should force this container to re-run on each
@@ -557,27 +612,8 @@ outputs:
                         expression: str($.data.debug)
                         data:
                           debug: {get_attr: [NovaBase, role_data, config_settings, 'nova::logging::debug']}
-        step_4:
+        step_5:
           map_merge:
-            - nova_wait_for_placement_service:
-                start_order: 2
-                image: *nova_compute_image
-                user: nova
-                net: host
-                privileged: false
-                detach: false
-                volumes:
-                  - /var/lib/container-config-scripts/:/container-config-scripts/:z
-                  - /var/lib/config-data/puppet-generated/nova_libvirt/etc/nova:/etc/nova:ro
-                command: "/container-config-scripts/pyshim.sh /container-config-scripts/nova_wait_for_placement_service.py"
-                environment:
-                  - list_join:
-                      - ''
-                      - - '__OS_DEBUG='
-                        - yaql:
-                            expression: str($.data.debug)
-                            data:
-                              debug: {get_attr: [NovaBase, role_data, config_settings, 'nova::logging::debug']}
             - nova_compute:
                 start_order: 3
                 image: *nova_compute_image
@@ -587,6 +623,8 @@ outputs:
                 privileged: true
                 user: nova
                 restart: always
+                depends_on:
+                  - tripleo_nova_libvirt
                 healthcheck: {get_attr: [ContainersCommon, healthcheck_rpc_port]}
                 volumes:
                   list_concat:
@@ -602,10 +640,16 @@ outputs:
                       - /lib/modules:/lib/modules:ro
                       - /run:/run
                       - /var/lib/iscsi:/var/lib/iscsi:z
-                      - /var/lib/nova:/var/lib/nova:shared,z
                       - /var/lib/libvirt:/var/lib/libvirt:shared,z
                       - /sys/class/net:/sys/class/net
                       - /sys/bus/pci:/sys/bus/pci
+                    -
+                      # podman fails to relable if nova_nfs_enabled where we have
+                      # the nfs share mounted to /var/lib/nova/instances
+                      if:
+                      - nova_nfs_enabled
+                      - - /var/lib/nova:/var/lib/nova:shared
+                      - - /var/lib/nova:/var/lib/nova:shared,z
                 environment:
                   list_concat:
                     - {get_param: NovaComputeOptEnvVars}
@@ -637,39 +681,6 @@ outputs:
                                 data:
                                   debug: {get_attr: [NovaBase, role_data, config_settings, 'nova::logging::debug']}
                 - {}
-        step_5:
-          if:
-            - is_not_additional_cell
-            - nova_cell_v2_discover_hosts:
-                start_order: 0
-                image: *nova_compute_image
-                net: host
-                detach: false
-                volumes:
-                  list_concat:
-                    - {get_attr: [ContainersCommon, volumes]}
-                    -
-                      - /var/lib/config-data/nova_libvirt/etc/my.cnf.d/:/etc/my.cnf.d/:ro
-                      - /var/lib/config-data/nova_libvirt/etc/nova/:/etc/nova/:ro
-                      - /var/log/containers/nova:/var/log/nova
-                      - /var/lib/container-config-scripts/:/container-config-scripts/
-                user: root
-                command: "/usr/bin/bootstrap_host_exec nova_compute su nova -s /bin/bash -c '/container-config-scripts/pyshim.sh /container-config-scripts/nova_cell_v2_discover_hosts.py'"
-                environment:
-                  # NOTE: this should force this container to re-run on each
-                  # update (scale-out, etc.)
-                  - list_join:
-                      - ''
-                      - - 'TRIPLEO_DEPLOY_IDENTIFIER='
-                        - {get_param: DeployIdentifier}
-                  - list_join:
-                      - ''
-                      - - '__OS_DEBUG='
-                        - yaql:
-                            expression: str($.data.debug)
-                            data:
-                              debug: {get_attr: [NovaBase, role_data, config_settings, 'nova::logging::debug']}
-            - {}
       host_prep_tasks:
         list_concat:
         - {get_attr: [NovaLogging, host_prep_tasks]}
@@ -683,11 +694,18 @@ outputs:
             when: nfs_backend_enable|bool
           - name: is Nova Resume Guests State On Host Boot enabled
             set_fact:
-              resume_guests_state_on_host_boot_enabled: {get_param: NovaResumeGuestsStateOnHostBoot}
-          - name: install libvirt-guests systemd unit file
-            when: resume_guests_state_on_host_boot_enabled|bool
+              resume_guests_state_on_host_boot_enabled: {get_attr: [RoleParametersValue, value, resume_guests_state_on_host_boot]}
+          - name: install libvirt-guests systemd unit file (docker)
+            when:
+              - resume_guests_state_on_host_boot_enabled|bool
+              - container_cli == 'docker'
             block:
-              - name: libvirt-guests unit to stop nova_api container before shutdown VMs
+              - name: make sure libvirt-client is installed
+                when: resume_guests_state_on_host_boot_enabled|bool
+                package:
+                  name: libvirt-client
+                  state: present
+              - name: libvirt-guests unit to stop nova_compute container before shutdown VMs
                 copy:
                   dest: /etc/systemd/system/libvirt-guests.service
                   content: |
@@ -720,6 +738,48 @@ outputs:
               - name: libvirt-guests enable VM shutdown on compute reboot/shutdown
                 systemd:
                   name: libvirt-guests
+                  enabled: yes
+                  state: started
+                  daemon_reload: yes
+          - name: install tripleo_nova_libvirt_guests systemd unit file (podman)
+            when:
+              - resume_guests_state_on_host_boot_enabled|bool
+              - container_cli == 'podman'
+            block:
+              - name: make sure default libvirt-guests is disabled
+                systemd:
+                  name: libvirt-guests
+                  enabled: no
+                  state: stopped
+                  masked: yes
+                  daemon_reload: yes
+              - name: libvirt-guests unit to stop nova_compute container before shutdown VMs
+                copy:
+                  dest: /etc/systemd/system/tripleo_nova_libvirt_guests.service
+                  content: |
+                    [Unit]
+                    Description=Suspend libvirt Guests in tripleo
+                    Requires=virt-guest-shutdown.target
+                    After=systemd-machined.service
+                    After=tripleo_nova_libvirt.service
+                    Before=tripleo_nova_compute.service
+                    Documentation=man:libvirtd(8)
+                    Documentation=https://libvirt.org
+
+                    [Service]
+                    EnvironmentFile=-/etc/sysconfig/libvirt-guests
+                    ExecStart=/usr/bin/podman exec nova_libvirt /bin/rm -f /var/lib/libvirt/libvirt-guests
+                    ExecStop=/usr/bin/podman exec nova_libvirt /bin/sh -x /usr/libexec/libvirt-guests.sh shutdown
+                    Type=oneshot
+                    RemainAfterExit=yes
+                    StandardOutput=journal+console
+                    TimeoutStopSec=0
+
+                    [Install]
+                    WantedBy=multi-user.target
+              - name: tripleo_nova_libvirt_guests enable VM shutdown on compute reboot/shutdown
+                systemd:
+                  name: tripleo_nova_libvirt_guests
                   enabled: yes
                   daemon_reload: yes
           - name: create persistent directories
@@ -811,6 +871,7 @@ outputs:
               with_items:
                 - ksm.service
                 - ksmtuned.service
+      external_post_deploy_tasks: {get_attr: [NovaComputeCommon, nova_compute_common_deploy_steps_tasks]}
       upgrade_tasks:
         - name: Remove openstack-nova-compute and python-nova package during upgrade
           package:

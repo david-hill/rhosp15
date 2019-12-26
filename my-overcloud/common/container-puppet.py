@@ -30,6 +30,8 @@ import multiprocessing
 
 from paunch import runner as containers_runner
 
+PUPPETS = '/usr/share/openstack-puppet/modules/:/usr/share/openstack-puppet/modules/:ro'
+
 logger = None
 sh_script = '/var/lib/container-puppet/container-puppet.sh'
 container_cli = os.environ.get('CONTAINER_CLI', 'podman')
@@ -66,7 +68,7 @@ if not os.path.exists(config_volume_prefix):
     os.makedirs(config_volume_prefix)
 
 if container_cli == 'docker':
-    cli_dcmd = ['--volume', '/usr/share/openstack-puppet/modules/:/usr/share/openstack-puppet/modules/:ro']
+    cli_dcmd = ['--volume', PUPPETS]
     env = {}
     RUNNER = containers_runner.DockerRunner(
         'container-puppet', cont_cmd='docker', log=log)
@@ -74,7 +76,7 @@ elif container_cli == 'podman':
     # podman doesn't allow relabeling content in /usr and
     # doesn't support named volumes
     cli_dcmd = ['--security-opt', 'label=disable',
-                '--volume', '/usr/share/openstack-puppet/modules/:/usr/share/openstack-puppet/modules/:ro']
+                '--volume', PUPPETS]
     # podman need to find dependent binaries that are in environment
     env = {'PATH': os.environ['PATH']}
     RUNNER = containers_runner.PodmanRunner(
@@ -87,8 +89,9 @@ else:
 # NOTE: we require this to support the tarball extracted (Deployment archive)
 # puppet modules but our containers now also include puppet-tripleo so we
 # could use either
-if os.environ.get('MOUNT_HOST_PUPPET', 'true') == 'true':
-    cli_dcmd.extend(['--volume', '/usr/share/openstack-puppet/modules/:/usr/share/openstack-puppet/modules/:ro'])
+if (os.environ.get('MOUNT_HOST_PUPPET', 'true') == 'true' and
+   PUPPETS not in cli_dcmd):
+    cli_dcmd.extend(['--volume', PUPPETS])
 
 # this is to match what we do in deployed-server
 def short_hostname():
@@ -172,18 +175,31 @@ def rm_container(name):
         if cmd_stderr:
             log.debug(cmd_stderr)
 
+    def run_cmd(rm_cli_cmd):
+        subproc = subprocess.Popen(rm_cli_cmd,
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE,
+                                   universal_newlines=True)
+        cmd_stdout, cmd_stderr = subproc.communicate()
+        if cmd_stdout:
+            log.debug(cmd_stdout)
+        if cmd_stderr and \
+               cmd_stderr != 'Error response from daemon: ' \
+               'No such container: {}\n'.format(name):
+            log.debug(cmd_stderr)
+
     log.info('Removing container: %s' % name)
-    subproc = subprocess.Popen([cli_cmd, 'rm', name],
-                               stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE,
-                               universal_newlines=True)
-    cmd_stdout, cmd_stderr = subproc.communicate()
-    if cmd_stdout:
-        log.debug(cmd_stdout)
-    if cmd_stderr and \
-           cmd_stderr != 'Error response from daemon: ' \
-           'No such container: {}\n'.format(name):
-        log.debug(cmd_stderr)
+    rm_cli_cmd = [cli_cmd, 'rm']
+    rm_cli_cmd.append(name)
+    run_cmd(rm_cli_cmd)
+
+    # rm --storage is used as a mitigation of
+    # https://github.com/containers/libpod/issues/3906
+    # Also look https://bugzilla.redhat.com/show_bug.cgi?id=1747885
+    if container_cli == 'podman':
+        rm_storage_cli_cmd = [cli_cmd, 'rm', '--storage']
+        rm_storage_cli_cmd.append(name)
+        run_cmd(rm_storage_cli_cmd)
 
 process_count = int(os.environ.get('PROCESS_COUNT',
                                    multiprocessing.cpu_count()))
@@ -300,13 +316,12 @@ if not os.path.exists(sh_script):
         /usr/bin/puppet apply --summarize \
                 --detailed-exitcodes \
                 --color=false \
-                --logdest syslog \
-                --logdest console \
                 --modulepath=/etc/puppet/modules:/usr/share/openstack-puppet/modules \
                 $TAGS \
                 $CHECK_MODE \
-                /etc/config.pp
-        rc=$?
+                /etc/config.pp \
+                2>&1 | logger -s -t puppet-user
+        rc=${PIPESTATUS[0]}
         set -e
         if [ $rc -ne 2 -a $rc -ne 0 ]; then
             exit $rc
@@ -337,8 +352,17 @@ if not os.path.exists(sh_script):
                     exclude_files+=" --exclude=$p"
                 fi
             done
-            rsync -a -R --delay-updates --delete-after $exclude_files $rsync_srcs /var/lib/config-data/${NAME}
 
+            # Exclude read-only mounted directories/files which we do not want
+            # to copy or delete.
+            ro_files="/etc/puppetlabs/ /opt/puppetlabs/"
+            for ro in $ro_files; do
+                if [ -e "$ro" ]; then
+                    exclude_files+=" --exclude=$ro"
+                fi
+            done
+
+            rsync -a -R --delay-updates --delete-after $exclude_files $rsync_srcs /var/lib/config-data/${NAME}
 
             # Also make a copy of files modified during puppet run
             # This is useful for debugging
@@ -409,7 +433,6 @@ def mp_puppet_config(*args):
                 '--env', 'NO_ARCHIVE=%s' % os.environ.get('NO_ARCHIVE', ''),
                 '--env', 'STEP=%s' % os.environ.get('STEP', '6'),
                 '--env', 'NET_HOST=%s' % os.environ.get('NET_HOST', 'false'),
-                '--log-driver', 'json-file',
                 '--volume', '/etc/localtime:/etc/localtime:ro',
                 '--volume', '%s:/etc/config.pp:ro' % tmp_man.name,
                 '--volume', '/etc/puppet/:/tmp/puppet-etc/:ro',
@@ -419,6 +442,9 @@ def mp_puppet_config(*args):
                 '--volume', '/etc/pki/tls/certs/ca-bundle.trust.crt:/etc/pki/tls/certs/ca-bundle.trust.crt:ro',
                 '--volume', '/etc/pki/tls/cert.pem:/etc/pki/tls/cert.pem:ro',
                 '--volume', '%s:/var/lib/config-data/:rw' % config_volume_prefix,
+                # facter caching
+                '--volume', '/var/lib/container-puppet/puppetlabs/facter.conf:/etc/puppetlabs/facter/facter.conf:ro',
+                '--volume', '/var/lib/container-puppet/puppetlabs/:/opt/puppetlabs/:ro',
                 # Syslog socket for puppet logs
                 '--volume', '/dev/log:/dev/log:rw']
         if privileged:
@@ -426,7 +452,8 @@ def mp_puppet_config(*args):
 
         if container_cli == 'podman':
             log_path = os.path.join(container_log_stdout_path, uname)
-            logging = ['--log-opt',
+            logging = ['--log-driver', 'k8s-file',
+                       '--log-opt',
                        'path=%s.log' % log_path]
             common_dcmd.extend(logging)
 
@@ -454,6 +481,9 @@ def mp_puppet_config(*args):
             log.debug('NET_HOST enabled')
             dcmd.extend(['--net', 'host', '--volume',
                          '/etc/hosts:/etc/hosts:ro'])
+        else:
+            log.debug('running without containers Networking')
+            dcmd.extend(['--net', 'none'])
 
         # script injection as the last mount to make sure it's accessible
         # https://github.com/containers/libpod/issues/1844

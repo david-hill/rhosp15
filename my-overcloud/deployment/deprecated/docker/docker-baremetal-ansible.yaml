@@ -74,6 +74,23 @@ parameters:
     description: Flag to disable docker reconfiguration during stack update.
     tags:
       - role_specific
+  ContainerImageRegistryLogin:
+    type: boolean
+    default: false
+    description: Flag to enable container registry login actions during the deployment.
+                 Setting this to true will cause login calls to be performed during the
+                 deployment.
+  ContainerImageRegistryCredentials:
+    type: json
+    hidden: true
+    default: {}
+    description: |
+      Mapping of image registry hosts to login credentials. Must be in the following example format
+
+        docker.io:
+          username: pa55word
+        '192.0.2.1:8787':
+          registry_username: password
   SELinuxMode:
     default: 'enforcing'
     description: Configures SELinux mode
@@ -143,9 +160,31 @@ outputs:
                   - selinux_enforcing
                   - true
                   - false
+              container_registry_login: {get_param: ContainerImageRegistryLogin}
+              # default that is overwritten by the heat -> dict conversion
+              container_registry_logins: {}
+              container_registry_logins_json: {get_param: ContainerImageRegistryCredentials}
+          - name: Convert logins json to dict
+            set_fact:
+              container_registry_logins: "{{ container_registry_logins_json | from_json }}"
+            when:
+              - container_registry_logins_json is string
+              - container_registry_login | bool
+              - (container_registry_logins_json | length) > 0
+          - name: Set registry logins
+            set_fact:
+              container_registry_logins: "{{ container_registry_logins_json }}"
+            when:
+              - container_registry_logins_json is mapping
+              - container_registry_login | bool
+              - (container_registry_logins_json | length) > 0
           - include_role:
               name: container-registry
               tasks_from: docker
+          - include_role:
+              name: container-registry
+              tasks_from: docker-login
+            when: container_registry_login|bool
       service_config_settings:
         neutron_l3:
           docker_additional_sockets: {get_param: DockerAdditionalSockets}
@@ -163,6 +202,26 @@ outputs:
                 name: container-registry
                 tasks_from: docker
           when: step|int == 3
+      post_upgrade_tasks:
+        - name: Clean docker
+          when:
+            - step|int == 3
+            - container_cli == 'docker'
+          block:
+            - name: Check if docker has some data
+              stat:
+                path: /var/lib/docker
+              register: docker_path_stat
+            - name: Purge Docker
+              when: docker_path_stat.stat.exists
+              block:
+                - name: Ensure docker service is running
+                  systemd:
+                    name: docker
+                  register: docker_service_state
+                - name: Run docker system prune
+                  shell: docker system prune -a -f
+                  when: docker_service_state.status['SubState'] == 'running'
       update_tasks:
         - name: Restart Docker when needed
           when: step|int == 2
@@ -171,3 +230,26 @@ outputs:
           - include_role:
               name: container-registry
               tasks_from: docker-update
+      post_update_tasks:
+        - name: Clean docker
+          when:
+            - step|int == 3
+            - container_cli == 'docker'
+          block:
+            - name: Check if docker has some data
+              stat:
+                path: /var/lib/docker
+              register: docker_path_stat
+            - name: Purge Docker
+              when: docker_path_stat.stat.exists
+              block:
+                - name: Ensure docker service is running
+                  systemd:
+                    name: docker
+                  register: docker_service_state
+                - name: Run docker image prune
+                  shell: docker image prune -f
+                  when: docker_service_state.status['SubState'] == 'running'
+                - name: Run docker volume prune
+                  shell: docker volume prune -f
+                  when: docker_service_state.status['SubState'] == 'running'

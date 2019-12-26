@@ -150,9 +150,11 @@ outputs:
               - object-server
             swift::storage::all::container_pipeline:
               - healthcheck
+              - recon
               - container-server
             swift::storage::all::account_pipeline:
               - healthcheck
+              - recon
               - account-server
             swift::storage::disks::args: {get_param: SwiftRawDisks}
             swift::storage::all::storage_local_net_ip:
@@ -339,6 +341,7 @@ outputs:
                         - /srv/node:/srv/node:z
                         - /dev:/dev
                         - /var/cache/swift:/var/cache/swift:z
+                        - /var/log/containers/swift:/var/log/swift:z
                   environment: &kolla_env
                     - KOLLA_CONFIG_STRATEGY=COPY_ALWAYS
                 swift_account_replicator:
@@ -346,6 +349,8 @@ outputs:
                   net: host
                   user: swift
                   restart: always
+                  healthcheck:
+                    test: /openstack/healthcheck
                   volumes:
                     list_concat:
                       - {get_attr: [ContainersCommon, volumes]}
@@ -355,6 +360,7 @@ outputs:
                         - /srv/node:/srv/node
                         - /dev:/dev
                         - /var/cache/swift:/var/cache/swift
+                        - /var/log/containers/swift:/var/log/swift:z
                   environment: *kolla_env
                 swift_container_auditor:
                   image: &swift_container_image {get_param: DockerSwiftContainerImage}
@@ -370,12 +376,15 @@ outputs:
                         - /srv/node:/srv/node
                         - /dev:/dev
                         - /var/cache/swift:/var/cache/swift
+                        - /var/log/containers/swift:/var/log/swift:z
                   environment: *kolla_env
                 swift_container_replicator:
                   image: *swift_container_image
                   net: host
                   user: swift
                   restart: always
+                  healthcheck:
+                    test: /openstack/healthcheck
                   volumes:
                     list_concat:
                       - {get_attr: [ContainersCommon, volumes]}
@@ -385,6 +394,7 @@ outputs:
                         - /srv/node:/srv/node
                         - /dev:/dev
                         - /var/cache/swift:/var/cache/swift
+                        - /var/log/containers/swift:/var/log/swift:z
                   environment: *kolla_env
 
                 swift_object_auditor:
@@ -401,12 +411,15 @@ outputs:
                         - /srv/node:/srv/node
                         - /dev:/dev
                         - /var/cache/swift:/var/cache/swift
+                        - /var/log/containers/swift:/var/log/swift:z
                   environment: *kolla_env
                 swift_object_replicator:
                   image: *swift_object_image
                   net: host
                   user: swift
                   restart: always
+                  healthcheck:
+                    test: /openstack/healthcheck
                   volumes:
                     list_concat:
                       - {get_attr: [ContainersCommon, volumes]}
@@ -416,6 +429,7 @@ outputs:
                         - /srv/node:/srv/node
                         - /dev:/dev
                         - /var/cache/swift:/var/cache/swift
+                        - /var/log/containers/swift:/var/log/swift:z
                   environment: *kolla_env
             -
               swift_account_reaper:
@@ -432,6 +446,7 @@ outputs:
                       - /srv/node:/srv/node:z
                       - /dev:/dev
                       - /var/cache/swift:/var/cache/swift:z
+                      - /var/log/containers/swift:/var/log/swift:z
                 environment: *kolla_env
               swift_account_server:
                 image: *swift_account_image
@@ -449,6 +464,7 @@ outputs:
                       - /srv/node:/srv/node
                       - /dev:/dev
                       - /var/cache/swift:/var/cache/swift
+                      - /var/log/containers/swift:/var/log/swift:z
                 environment: *kolla_env
               swift_container_updater:
                 image: *swift_container_image
@@ -464,6 +480,7 @@ outputs:
                       - /srv/node:/srv/node
                       - /dev:/dev
                       - /var/cache/swift:/var/cache/swift
+                      - /var/log/containers/swift:/var/log/swift:z
                 environment: *kolla_env
               swift_container_server:
                 image: *swift_container_image
@@ -481,6 +498,7 @@ outputs:
                       - /srv/node:/srv/node
                       - /dev:/dev
                       - /var/cache/swift:/var/cache/swift
+                      - /var/log/containers/swift:/var/log/swift:z
                 environment: *kolla_env
               swift_object_expirer:
                 image: &swift_proxy_image {get_param: DockerSwiftProxyImage}
@@ -496,6 +514,7 @@ outputs:
                       - /srv/node:/srv/node
                       - /dev:/dev
                       - /var/cache/swift:/var/cache/swift
+                      - /var/log/containers/swift:/var/log/swift:z
                 environment: *kolla_env
               swift_object_updater:
                 image: *swift_object_image
@@ -511,6 +530,7 @@ outputs:
                       - /srv/node:/srv/node
                       - /dev:/dev
                       - /var/cache/swift:/var/cache/swift
+                      - /var/log/containers/swift:/var/log/swift:z
                 environment: *kolla_env
               swift_object_server:
                 image: *swift_object_image
@@ -528,12 +548,15 @@ outputs:
                       - /srv/node:/srv/node
                       - /dev:/dev
                       - /var/cache/swift:/var/cache/swift
+                      - /var/log/containers/swift:/var/log/swift:z
                 environment: *kolla_env
               swift_rsync:
                 image: *swift_object_image
                 net: host
                 user: root
                 restart: always
+                healthcheck:
+                  test: /openstack/healthcheck
                 privileged: true
                 volumes:
                   list_concat:
@@ -543,6 +566,7 @@ outputs:
                       - /var/lib/config-data/puppet-generated/swift/:/var/lib/kolla/config_files/src:ro
                       - /srv/node:/srv/node
                       - /dev:/dev
+                      - /var/log/containers/swift:/var/log/swift:z
                       # /var/cache/swift not needed in this container
                 environment: *kolla_env
             - if:
@@ -562,6 +586,7 @@ outputs:
                         - /srv/node:/srv/node
                         - /dev:/dev
                         - /var/cache/swift:/var/cache/swift
+                        - /var/log/containers/swift:/var/log/swift:z
               - {}
 
       host_prep_tasks:
@@ -573,6 +598,7 @@ outputs:
           with_items:
             - { 'path': /srv/node, 'setype': svirt_sandbox_file_t }
             - { 'path': /var/cache/swift, 'setype': svirt_sandbox_file_t }
+            - { 'path': /var/log/containers/swift, 'setype': svirt_sandbox_file_t }
             - { 'path': /var/log/swift, 'setype': var_log_t }
             - { 'path': /var/log/containers, 'setype': svirt_sandbox_file_t }
         - name: Set swift_use_local_disks fact
@@ -583,15 +609,6 @@ outputs:
             path: "/srv/node/d1"
             state: directory
           when: swift_use_local_disks
-        - stat: path=/var/log/swift
-          register: swift_log_stat
-        - name: Create swift logging symlink
-          file:
-            src: /var/log/swift
-            dest: /var/log/containers/swift
-            state: link
-          ignore_errors: "{{ ansible_check_mode|bool }}"
-          when: swift_log_stat.stat.exists
         - name: swift logs readme
           copy:
             dest: /var/log/swift/readme.txt
@@ -599,24 +616,6 @@ outputs:
               Log files from swift containers can be found under
               /var/log/containers/swift and /var/log/containers/httpd/swift-*.
           ignore_errors: true
-        - name: Check if rsyslog exists
-          shell: systemctl list-unit-files --type=service | grep -q rsyslog
-          register: rsyslog_config
-          failed_when: rsyslog_config.rc == 2
-        - block:
-            - name: Forward logging to swift.log file
-              copy:
-                content: |
-                  # Fix for https://bugs.launchpad.net/tripleo/+bug/1776180
-                  local2.*                 /var/log/swift/swift.log
-                  &                        stop
-                dest: /etc/rsyslog.d/openstack-swift.conf
-              register: logconfig
-            - name: Restart rsyslogd service after logging conf change
-              service: name=rsyslog state=restarted
-              when:
-                - logconfig is changed
-          when: rsyslog_config.rc == 0
         - name: Set fact for SwiftRawDisks
           set_fact:
             swift_raw_disks: {get_param: SwiftRawDisks}
@@ -636,11 +635,44 @@ outputs:
             state: mounted
           with_items: "{{ swift_raw_disks }}"
           when: swift_raw_disks
+      deploy_steps_tasks:
+        - name: Configure rsyslog for swift-storage
+          when: step|int == 1
+          block:
+            - name: Check if rsyslog exists
+              shell: systemctl list-unit-files --type=service | grep -q rsyslog
+              register: rsyslog_config
+              failed_when: rsyslog_config.rc == 2
+            - block:
+                - name: Forward logging to swift.log file
+                  copy:
+                    content: |
+                      # Fix for https://bugs.launchpad.net/tripleo/+bug/1776180
+                      local2.*                 /var/log/containers/swift/swift.log
+                      &                        stop
+                    dest: /etc/rsyslog.d/openstack-swift.conf
+                  register: logconfig
+                - name: Restart rsyslogd service after logging conf change
+                  service: name=rsyslog state=restarted
+                  when:
+                    - logconfig is changed
+              when:
+                - rsyslog_config is changed
+                - rsyslog_config.rc == 0
       update_tasks:
         - name: Ensure rsyncd pid file is absent
           file:
             path: /var/run/rsyncd.pid
             state: absent
+        - name: Check swift containers log folder/symlink exists
+          stat:
+            path: /var/log/containers/swift
+          register: swift_log_link
+        - name: Delete if symlink
+          file:
+            path: /var/log/containers/swift
+            state: absent
+          when: swift_log_link.stat.islnk is defined and swift_log_link.stat.islnk
       post_upgrade_tasks:
         - when: step|int == 1
           import_role:

@@ -69,11 +69,28 @@ parameters:
       e.g. { octavia-context_is_admin: { key: context_is_admin, value: 'role:admin' } }
     default: {}
     type: json
+  OctaviaFlavorProperties:
+    default:
+      ram  : '1024'
+      disk : '3'
+      vcpus: '1'
+    description: Dictionary describing the nova flavor for amphora.
+    type: json
+  OctaviaManageNovaFlavor:
+    default: true
+    description: Configure the nova flavor for the amphora.
+    type: boolean
+  NeutronMechanismDrivers:
+    default: 'ovn'
+    description: |
+        The mechanism drivers for the Neutron tenant network.
+    type: comma_delimited_list
 
 conditions:
 
   internal_tls_enabled: {equals: [{get_param: EnableInternalTLS}, true]}
   use_tls_proxy: {equals : [{get_param: EnableInternalTLS}, true]}
+  is_ovn_in_neutron_mechanism_driver: {contains: ['ovn', {get_param: NeutronMechanismDrivers}]}
 
 resources:
 
@@ -119,6 +136,8 @@ outputs:
             octavia::keystone::authtoken::auth_url: {get_param: [EndpointMap, KeystoneInternal, uri_no_suffix]}
             octavia::keystone::authtoken::project_name: {get_param: OctaviaProjectName}
             octavia::keystone::authtoken::password: {get_param: OctaviaPassword}
+            octavia::worker::manage_nova_flavor: {get_param: OctaviaManageNovaFlavor}
+            octavia::worker::nova_flavor_config: {get_param: OctaviaFlavorProperties}
             octavia::api::sync_db: true
             octavia::api::service_name: 'httpd'
             octavia::wsgi::apache::ssl: {get_param: EnableInternalTLS}
@@ -154,6 +173,12 @@ outputs:
                   "%{hiera('$NETWORK')}"
                 params:
                   $NETWORK: {get_param: [ServiceNetMap, OctaviaApiNetwork]}
+          -
+            if:
+              - is_ovn_in_neutron_mechanism_driver
+              - octavia::api::provider_drivers: 'amphora: Octavia Amphora Driver.,octavia: Deprecated alias of the Octavia Amphora driver.,ovn: Octavia OVN driver.'
+              - {}
+
       service_config_settings:
         fluentd:
           tripleo_fluentd_groups_octavia_api:
@@ -201,12 +226,23 @@ outputs:
             - path: /var/log/octavia
               owner: octavia:octavia
               recurse: true
+        /var/lib/kolla/config_files/octavia_driver_agent.json:
+          command: /usr/bin/octavia-driver-agent --config-file /usr/share/octavia/octavia-dist.conf --config-file /etc/octavia/octavia.conf --log-file /var/log/octavia/driver-agent.log --config-dir /etc/octavia/conf.d/common
+          config_files:
+            - source: "/var/lib/kolla/config_files/src/*"
+              dest: "/"
+              merge: true
+              preserve_properties: true
+          permissions:
+            - path: /var/log/octavia
+              owner: octavia:octavia
+              recurse: true
       container_puppet_tasks:
         step_5:
           config_volume: octavia
           puppet_tags: nova_flavor
-          step_config:
-            get_attr: [OctaviaWorker, role_data, step_config]
+          step_config: |
+            include ::octavia::worker
           config_image: {get_param: DockerOctaviaConfigImage}
           volumes:
             - /var/lib/config-data/puppet-generated/nova/etc/nova:/etc/nova:ro
@@ -263,6 +299,7 @@ outputs:
                       - /var/lib/kolla/config_files/octavia_api.json:/var/lib/kolla/config_files/config.json:ro
                       - /var/lib/config-data/puppet-generated/octavia/:/var/lib/kolla/config_files/src:ro
                       - /var/log/containers/octavia:/var/log/octavia:z
+                      - /var/run/octavia:/var/run/octavia:shared,z
                       - /var/log/containers/httpd/octavia-api:/var/log/httpd:z
                       -
                         if:
@@ -276,6 +313,26 @@ outputs:
                           - ''
                 environment:
                   - KOLLA_CONFIG_STRATEGY=COPY_ALWAYS
+            - if:
+                - is_ovn_in_neutron_mechanism_driver
+                - octavia_driver_agent:
+                    start_order: 2
+                    image: *octavia_api_image
+                    net: host
+                    privileged: true
+                    restart: always
+                    volumes:
+                      list_concat:
+                        - {get_attr: [ContainersCommon, volumes]}
+                        -
+                          - /var/lib/kolla/config_files/octavia_driver_agent.json:/var/lib/kolla/config_files/config.json:ro
+                          - /var/lib/config-data/puppet-generated/octavia/:/var/lib/kolla/config_files/src:ro
+                          - /var/log/containers/octavia:/var/log/octavia:z
+                          - /var/run/octavia:/var/run/octavia:shared,z
+                    environment:
+                      - KOLLA_CONFIG_STRATEGY=COPY_ALWAYS
+                - {}
+
       host_prep_tasks:
         - name: create persistent directories
           file:
@@ -286,6 +343,7 @@ outputs:
             - { 'path': /var/log/containers/octavia, 'setype': svirt_sandbox_file_t }
             - { 'path': /var/log/containers/httpd/octavia-api, 'setype': svirt_sandbox_file_t }
             - { 'path': /var/log/octavia, 'setype': svirt_sandbox_file_t }
+            - { 'path': /var/run/octavia, 'setype': svirt_sandbox_file_t }
         - name: octavia logs readme
           copy:
             dest: /var/log/octavia/readme.txt
@@ -294,6 +352,9 @@ outputs:
               /var/log/containers/octavia and /var/log/containers/httpd/octavia-api.
           ignore_errors: true
       update_tasks:
+        - name: Set internal tls variable
+          set_fact:
+            internal_tls_enabled: {get_param: EnableInternalTLS}
         - name: remove TLS proxy if configured and running
           when:
             - step|int == 2
@@ -316,12 +377,18 @@ outputs:
                 path: "/etc/systemd/system/tripleo_octavia_api_tls_proxy"
               when: container_cli == 'podman'
       upgrade_tasks:
+        - name: Set internal tls variable
+          set_fact:
+            internal_tls_enabled: {get_param: EnableInternalTLS}
         - name: remove TLS proxy if configured and running
           when:
             - step|int == 2
             - internal_tls_enabled|bool
           block: *remove_octavia_tls_proxy_tasks
       post_upgrade_tasks:
+        - name: Set internal tls variable
+          set_fact:
+            internal_tls_enabled: {get_param: EnableInternalTLS}
         - when: step|int == 1
           import_role:
             name: tripleo-docker-rm

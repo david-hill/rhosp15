@@ -57,10 +57,16 @@ parameters:
     description: Optional. Mirror to use for registry docker.io
     default: ''
     type: string
-  ContainerImagePrepareDebug:
+  Debug:
     default: false
-    description: Whether or not we want to activate --debug in tripleo container image prepare.
+    description: Set to True to enable debugging on all services.
     type: boolean
+  ContainerImagePrepareDebug:
+    default: ''
+    description: Whether or not we want to activate --debug in tripleo container image prepare.
+    type: string
+    constraints:
+      - allowed_values: [ '', 'true', 'True', 'TRUE', 'false', 'False', 'FALSE']
   ContainerImageRegistryCredentials:
     type: json
     hidden: true
@@ -87,6 +93,10 @@ parameters:
     default: {{role.CountDefault|default(0)}}
 {% endfor %}
 
+conditions:
+
+  service_debug_unset: {equals : [{get_param: ContainerImagePrepareDebug}, '']}
+
 outputs:
   role_data:
     description: Role data for container image prepare
@@ -99,7 +109,11 @@ outputs:
           block:
           - set_fact:
               log_file: {get_param: ContainerImagePrepareLogFile}
-              container_image_prepare_debug: {get_param: ContainerImagePrepareDebug}
+              container_image_prepare_debug:
+                if:
+                - service_debug_unset
+                - {get_param: Debug }
+                - {get_param: ContainerImagePrepareDebug }
           - name: Create temp file for prepare parameter
             tempfile:
               state: file
@@ -130,15 +144,21 @@ outputs:
             copy:
               dest: "{{ '{{' }} role_data.path {{ '}}' }}"
               content: {{ roles }}
+          - name: debuging something
+            debug:
+              msg: |
+                sudo /usr/bin/tripleo-container-image-prepare \
+                  --roles-file {{ '{{' }} role_data.path {{ '}}' }} \
+                  --environment-file {{ '{{' }} prepare_param.path {{ '}}' }} \
+                  --cleanup partial \
+                  --log-file {{ '{{' }} log_file {{ '}}' }} {{ '{' }}% if container_image_prepare_debug|default(false) %{{ '}' }}--debug{{ '{' }}% endif %{{ '}' }}
           - name: Run tripleo-container-image-prepare logged to {{ '{{' }} log_file {{ '}}' }}
             shell: |
               sudo /usr/bin/tripleo-container-image-prepare \
                 --roles-file {{ '{{' }} role_data.path {{ '}}' }} \
                 --environment-file {{ '{{' }} prepare_param.path {{ '}}' }} \
                 --cleanup partial \
-                --log-file {{ '{{' }} log_file {{ '}}' }}{{ '{' }}% if container_image_prepare_debug|default(false) %{{ '}' }} \
-                --debug > {{ '{{' }} log_file {{ '}}' }} 2>&1{{ '{' }}% endif %{{ '}' }}
-            no_log: True
+                --log-file {{ '{{' }} log_file {{ '}}' }} {{ '{' }}% if container_image_prepare_debug|default(false) %{{ '}' }}--debug{{ '{' }}% endif %{{ '}' }}
           - name: Delete param file
             file:
               dest: "{{ '{{' }} prepare_param.path {{ '}}' }}"

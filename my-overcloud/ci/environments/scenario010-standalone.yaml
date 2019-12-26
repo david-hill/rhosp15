@@ -31,7 +31,13 @@ resource_registry:
   OS::TripleO::Services::Horizon: OS::Heat::None
 
 parameter_defaults:
+  StandaloneExtraConfig:
+    octavia::controller::connection_retry_interval: 10
   OctaviaAmphoraSshKeyFile: /home/zuul/.ssh/id_rsa.pub
+  OctaviaAmphoraImageFilename: /home/zuul/amphora.qcow2
+  OctaviaCaKeyPassphrase: 'upstreamci'
+  OctaviaManageNovaFlavor: true
+  OctaviaGenerateCerts: true
   NodeDataLookup:
     AB4114B1-9C9D-409A-BEFB-D88C151BF2C3: {"foo": "bar"}
     8CF1A7EA-7B4B-4433-AC83-17675514B1B8: {"foo2": "bar2"}
@@ -54,6 +60,7 @@ parameter_defaults:
     centos_package_dependencies: []
     ceph_osd_docker_memory_limit: '1g'
     ceph_mds_docker_memory_limit: '1g'
+    mon_host_v1: { 'enabled': False }
   #NOTE: These ID's and keys should be regenerated for
   # a production deployment. What is here is suitable for
   # developer and CI testing only.

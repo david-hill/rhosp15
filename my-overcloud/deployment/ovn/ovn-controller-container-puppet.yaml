@@ -74,6 +74,16 @@ parameters:
     type: boolean
     tags:
       - role_specific
+  OVNRemoteProbeInterval:
+    description: Probe interval in ms
+    type: number
+    default: 60000
+  OVNOpenflowProbeInterval:
+    description: >
+      The inactivity probe interval of the OpenFlow connection to the
+      OpenvSwitch integration bridge, in seconds.
+    type: number
+    default: 60
 
 conditions:
   force_config_drive:  {equals: [{get_param: OVNMetadataEnabled}, false]}
@@ -117,7 +127,10 @@ outputs:
                  params:
                    $NETWORK: {get_param: [ServiceNetMap, NeutronTenantNetwork]}
             ovn::controller::ovn_bridge: {get_param: OVNIntegrationBridge}
+            ovn::controller::hostname: "%{hiera('fqdn_canonical')}"
+            ovn::controller::ovn_remote_probe_interval: {get_param: OVNRemoteProbeInterval}
             tripleo::profile::base::neutron::agents::ovn::ovn_db_host: {get_param: [EndpointMap, OvnDbInternal, host_nobrackets]}
+            ovn::controller::ovn_openflow_probe_interval: {get_param: OVNOpenflowProbeInterval}
             tripleo::ovn_controller::firewall_rules:
               '118 neutron vxlan networks':
                     proto: 'udp'
@@ -145,6 +158,8 @@ outputs:
         volumes:
           - /lib/modules:/lib/modules:ro
           - /run/openvswitch:/run/openvswitch:shared,z
+          # Needed for creating module load files
+          - /etc/sysconfig/modules:/etc/sysconfig/modules
       kolla_config:
         /var/lib/kolla/config_files/ovn_controller.json:
           command: /usr/bin/ovn-controller --pidfile --log-file unix:/run/openvswitch/db.sock

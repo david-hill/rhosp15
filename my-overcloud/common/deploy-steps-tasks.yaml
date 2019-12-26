@@ -32,8 +32,9 @@
           file:
             path: /var/log/containers
             state: directory
-            setype: var_log_t
+            setype: container_file_t
             selevel: s0
+            mode: 0750
           tags:
             - host_config
         - name: Create ContainerLogStdoutPath directory
@@ -391,15 +392,17 @@
 
     - name: Run puppet host configuration for step {{ step }}
       when: enable_puppet|bool
-      command: >-
+      shell: >-
         puppet apply {{ host_puppet_config_debug | default('') }}
         --modulepath=/etc/puppet/modules:/opt/stack/puppet-modules:/usr/share/openstack-puppet/modules
         --detailed-exitcodes
         --summarize
-        --logdest syslog --logdest console --color=false
+        --color=false
         {{ ansible_check_mode | bool | ternary('--noop', '') }}
         {{ ansible_check_mode | bool | ternary('--hiera_config /etc/puppet/check-mode/hiera.yaml', '') }}
         /var/lib/tripleo-config/{{ ansible_check_mode | bool | ternary('check-mode/', '') }}puppet_step_config.pp
+        2>&1 | logger -s -t puppet-user ;
+        exit ${PIPESTATUS[0]}
       changed_when: outputs.rc == 2
       register: outputs
       failed_when: false
@@ -418,6 +421,80 @@
       tags:
         - host_config
       ignore_errors: "{{ ansible_check_mode|bool }}"
+
+    #########################################
+    # Pre-cache facts for container-puppet.py
+    #########################################
+    # We don't want the pre-cache tasks to be skipped in dry-run so we force
+    # check_mode to "no".
+    # https://bugzilla.redhat.com/show_bug.cgi?id=1738529
+    - name: Pre-cache facts for container-puppet.py
+      check_mode: no
+      tags:
+        - container_config
+        - container_config_tasks
+      block:
+        - name: Create puppet caching structures
+          file:
+            path: /var/lib/container-puppet/puppetlabs
+            state: directory
+            setype: svirt_sandbox_file_t
+            selevel: s0
+            recurse: True
+        - name: Check for facter.conf
+          check_mode: false
+          stat:
+            path: "/var/lib/container-puppet/puppetlabs/facter.conf"
+          register: _facter_conf_file
+        # See LP#1852606 for context
+        - name: Remove facter.conf if directory
+          check_mode: false
+          become: true
+          file:
+            path: "/var/lib/container-puppet/puppetlabs/facter.conf"
+            state: absent
+            force: true
+          when:
+            - _facter_conf_file.stat.isdir is defined
+            - _facter_conf_file.stat.isdir
+        - name: Write facter cache config
+          copy:
+            dest: /var/lib/container-puppet/puppetlabs/facter.conf
+            content: |
+              facts : {
+                ttls: [
+                  { "kernel" : 8 hour },
+                  { "memory" : 8 hour },
+                  { "networking" : 8 hour },
+                  { "operating system" : 8 hour },
+                  { "processor" : 8 hour },
+                ]
+              }
+            setype: svirt_sandbox_file_t
+            selevel: s0
+        - name: Cleanup facter cache if exists
+          file:
+            path: /opt/puppetlabs/facter
+            state: absent
+          ignore_errors: True
+        - name: Pre-cache facts
+          check_mode: false
+          command: facter --config /var/lib/container-puppet/puppetlabs/facter.conf
+          no_log: True
+          ignore_errors: True
+          register: _facter_cache_run
+        - name: Facter error output when failed
+          check_mode: false
+          debug:
+            msg: "{{ _facter_cache_run.stderr }}"
+          when: _facter_cache_run is failed
+        - name: Sync cached facts
+          check_mode: false
+          synchronize:
+            src: /opt/puppetlabs/
+            dest: /var/lib/container-puppet/puppetlabs/
+          delegate_to: "{{ inventory_hostname }}"
+          when: _facter_cache_run is succeeded
 
     ######################################
     # Generate config via container-puppet.py

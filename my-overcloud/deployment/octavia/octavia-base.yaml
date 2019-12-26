@@ -101,6 +101,13 @@ parameters:
                  If provided, this will create or update a file on the host
                  with the path provided in OctaviaCaKeyFile with the key
                  data.
+  OctaviaServerCertsKeyPassphrase:
+    constraints:
+      - length: { min: 32, max: 32}
+    description: Passphrase for encrypting Amphora Certificates and
+                 Private Keys. Must be exactly 32 characters.
+    type: string
+    hidden: true
   OctaviaCaKeyPassphrase:
     description: CA private key passphrase.
     type: string
@@ -142,6 +149,26 @@ parameters:
     default: 0
     description: Time to wait for TCP packets for content inspection.
     type: number
+  OctaviaConnectionMaxRetries:
+    default: 120
+    description: Retry threshold for connecting to amphorae.
+    type: number
+  OctaviaConnectionLogging:
+    default: true
+    description: When false, tenant connection flows will not be logged.
+    type: boolean
+  OctaviaBuildActiveRetries:
+    default: 120
+    description: Retry threshold for waiting for a build slot for an amphorae.
+    type: number
+  OctaviaPortDetachTimeout:
+    default: 300
+    description: Seconds to wait for a port to detach from an amphora.
+    type: number
+  OctaviaAntiAffinity:
+    default: true
+    description: Flag to indicate if anti-affinity feature is turned on.
+    type: boolean
 
 parameter_groups:
 - label: deprecated
@@ -186,7 +213,7 @@ outputs:
                 query:
                   read_default_file: /etc/my.cnf.d/tripleo.cnf
                   read_default_group: tripleo
-            octavia::service_auth::auth_url: {get_param: [EndpointMap, KeystonePublic, uri]}
+            octavia::service_auth::auth_url: {get_param: [EndpointMap, KeystoneV3Internal, uri]}
             octavia::service_auth::auth_type: 'password'
             octavia::service_auth::username: {get_param: OctaviaUserName}
             octavia::service_auth::password: {get_param: OctaviaPassword}
@@ -196,6 +223,7 @@ outputs:
             octavia::service_auth::auth_type: 'password'
             octavia::certificates::ca_certificate: {get_param: OctaviaCaCertFile}
             octavia::certificates::ca_private_key: {get_param: OctaviaCaKeyFile}
+            octavia::certificates::server_certs_key_passphrase: {get_param: OctaviaServerCertsKeyPassphrase}
             octavia::certificates::ca_private_key_passphrase: {get_param: OctaviaCaKeyPassphrase}
             octavia::controller::amp_boot_network_list: {get_param: OctaviaAmphoraNetworkList}
             octavia::controller::amp_flavor_id: {get_param: OctaviaFlavorId}
@@ -206,6 +234,11 @@ outputs:
             octavia::controller::timeout_member_connect: {get_param: OctaviaTimeoutMemberConnect}
             octavia::controller::timeout_member_data: {get_param: OctaviaTimeoutMemberData}
             octavia::controller::timeout_tcp_inspect: {get_param: OctaviaTimeoutTcpInspect}
+            octavia::controller::connection_max_retries: {get_param: OctaviaConnectionMaxRetries}
+            octavia::controller::connection_logging: {get_param: OctaviaConnectionLogging}
+            octavia::controller::build_active_retries: {get_param: OctaviaBuildActiveRetries}
+            octavia::controller::port_detach_timeout: {get_param: OctaviaPortDetachTimeout}
+            octavia::controller::enable_anti_affinity: {get_param: OctaviaAntiAffinity}
           -
             if:
             - octavia_topology_unset

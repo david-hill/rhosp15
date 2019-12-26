@@ -12,6 +12,10 @@ parameters:
   DockerNovaLibvirtConfigImage:
     description: The container image to use for the nova_libvirt config_volume
     type: string
+  ContainerNovaLibvirtUlimit:
+    default: ['nofile=131072', 'nproc=126960']
+    description: ulimit for Nova Libvirt Container
+    type: comma_delimited_list
   ServiceData:
     default: {}
     description: Dictionary packing service data
@@ -49,8 +53,10 @@ parameters:
                  relevant keys for libvirt.
   NovaEnableRbdBackend:
     default: false
-    description: Whether to enable or not the Rbd backend for Nova
+    description: Whether to enable the Rbd backend for Nova ephemeral storage.
     type: boolean
+    tags:
+      - role_specific
   CinderEnableRbdBackend:
     default: false
     description: Whether to enable or not the Rbd backend for Cinder
@@ -200,6 +206,23 @@ parameters:
     description: The password for the libvirt service when TLS is enabled
     type: string
     hidden: true
+  NovaNfsEnabled:
+    default: false
+    description: Whether to enable or not the NFS backend for Nova
+    type: boolean
+    tags:
+      - role_specific
+  LibvirtLogFilters:
+    description: Defines a filter to select a different logging level
+                 for a given category log outputs, as specified in
+                 https://libvirt.org/logging.html .
+    type: string
+    default: '1:libvirt 1:qemu 1:conf 1:security 3:event 3:json 3:file 3:object 1:util'
+  LibvirtTLSPriority:
+    description: >
+      Override the compile time default TLS priority string.
+    type: string
+    default: 'NORMAL:-VERS-SSL3.0:-VERS-TLS-ALL:+VERS-TLS1.2'
 
 conditions:
 
@@ -219,12 +242,19 @@ conditions:
 
   need_libvirt_secret:
     or:
-    - equals:
-      - {get_param: NovaEnableRbdBackend}
-      - true
-    - equals:
-      - {get_param: CinderEnableRbdBackend}
-      - true
+      - equals:
+        - {get_param: [RoleParameters, NovaEnableRbdBackend]}
+        - true
+      - and:
+        - equals:
+          - {get_param: [RoleParameters, NovaEnableRbdBackend]}
+          - ''
+        - equals:
+          - {get_param: NovaEnableRbdBackend}
+          - true
+      - equals:
+        - {get_param: CinderEnableRbdBackend}
+        - true
 
   use_tls_for_vnc:
     and:
@@ -273,6 +303,13 @@ conditions:
     equals:
       - {get_param: ContainerCli}
       - 'docker'
+
+  nova_nfs_enabled:
+    or:
+      - and:
+        - equals: [{get_param: NovaNfsEnabled}, true]
+        - equals: [{get_param: [RoleParameters, NovaNfsEnabled]}, '']
+      - equals: [{get_param: [RoleParameters, NovaNfsEnabled]}, true]
 
 resources:
   RoleParametersValue:
@@ -356,6 +393,7 @@ outputs:
                    "%{hiera('$NETWORK')}"
                  params:
                    $NETWORK: {get_param: [ServiceNetMap, NovaLibvirtNetwork]}
+            nova::compute::libvirt::log_filters: {get_param: LibvirtLogFilters}
             rbd_persistent_storage: {get_param: CinderEnableRbdBackend}
             tripleo::nova_libvirt::firewall_rules:
               '200 nova_libvirt':
@@ -370,6 +408,7 @@ outputs:
                 generate_service_certificates: true
                 tripleo::profile::base::nova::migration::client::libvirt_tls: true
                 tripleo::profile::base::nova::libvirt::tls_password: {get_param: [LibvirtTLSPassword]}
+                nova::compute::libvirt::tls_priority: {get_param: LibvirtTLSPriority}
                 nova::migration::libvirt::listen_address:
                   str_replace:
                      template:
@@ -515,6 +554,7 @@ outputs:
           list_join:
             - "\n"
             - - include tripleo::profile::base::nova::libvirt
+              - include tripleo::profile::base::nova::compute::libvirt_guests
               - {get_attr: [MySQLClient, role_data, step_config]}
         config_image: {get_param: DockerNovaLibvirtConfigImage}
       kolla_config:
@@ -599,6 +639,7 @@ outputs:
           nova_virtlogd:
             start_order: 0
             image: {get_param: DockerNovaLibvirtImage}
+            ulimit: {get_param: ContainerNovaLibvirtUlimit}
             net: host
             pid: host
             security_opt: label=disable
@@ -614,21 +655,31 @@ outputs:
                   - /dev:/dev
                   - /run:/run
                   - /sys/fs/cgroup:/sys/fs/cgroup
-                  - /var/lib/nova:/var/lib/nova:shared,z
                   - /var/run/libvirt:/var/run/libvirt:shared,z
                   - /var/lib/libvirt:/var/lib/libvirt
                   - /etc/libvirt/qemu:/etc/libvirt/qemu:ro
                   - /var/log/libvirt/qemu:/var/log/libvirt/qemu
+                # podman fails to relable if nova_nfs_enabled where we have
+                # the nfs share mounted to /var/lib/nova/instances
+                -
+                  if:
+                  - nova_nfs_enabled
+                  - - /var/lib/nova:/var/lib/nova:shared
+                  - - /var/lib/nova:/var/lib/nova:shared,z
             environment:
               - KOLLA_CONFIG_STRATEGY=COPY_ALWAYS
           nova_libvirt:
             start_order: 1
             image: {get_param: DockerNovaLibvirtImage}
+            ulimit: {get_param: ContainerNovaLibvirtUlimit}
             net: host
             pid: host
             privileged: true
             security_opt: label=disable
             restart: always
+            cpuset_cpus: all
+            depends_on:
+              - tripleo_nova_virtlogd
             healthcheck:
               test: /openstack/healthcheck
             volumes:
@@ -642,13 +693,19 @@ outputs:
                   - /dev:/dev
                   - /run:/run
                   - /sys/fs/cgroup:/sys/fs/cgroup
-                  - /var/lib/nova:/var/lib/nova:shared,z
                   - /etc/libvirt:/etc/libvirt
                   - /var/run/libvirt:/var/run/libvirt:shared,z
                   - /var/lib/libvirt:/var/lib/libvirt:shared,z
                   - /var/log/containers/libvirt:/var/log/libvirt:z
                   - /var/log/libvirt/qemu:/var/log/libvirt/qemu:ro
                   - /var/lib/vhost_sockets:/var/lib/vhost_sockets:z
+                # podman fails to relable if nova_nfs_enabled where we have
+                # the nfs share mounted to /var/lib/nova/instances
+                -
+                  if:
+                  - nova_nfs_enabled
+                  - - /var/lib/nova:/var/lib/nova:shared
+                  - - /var/lib/nova:/var/lib/nova:shared,z
                 -
                   if:
                     - docker_enabled
@@ -788,11 +845,13 @@ outputs:
           failed_when: false
           register: libvirt_installed
           check_mode: no
-        - name: make sure libvirt services are disabled
+        - name: make sure libvirt services are disabled and masked
           service:
             name: "{{ item }}"
             state: stopped
             enabled: no
+            masked: yes
+            daemon_reload: yes
           with_items:
             - libvirtd.service
             - virtlogd.socket
